@@ -13,6 +13,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 class AnimateActivitySingleRun(ThreeDScene):
 
     def setup(self):
+        # ZoomedScene.setup(self)
         #agent_id = 1583404415  # 1583180664 lunarlandercont
         # agent_id = 1583256614 # reach task
         #chiefinvesti = Chiefinvestigator(agent_id)
@@ -45,13 +46,12 @@ class AnimateActivitySingleRun(ThreeDScene):
     def construct(self):
         RUN_TIME = 0.02
 
-
         pca = skld.PCA(3)
         activations_transformed = pca.fit_transform(self.activations)
+        activations_transformed = activations_transformed * 0.5
         dot = Dot(activations_transformed[0, :], size=0.2)
         self.play(ShowCreation(dot), run_time=RUN_TIME)
-        self.set_camera_orientation(distance=20)
-        for i in range(40):
+        for i in range(256):
             line = Line(activations_transformed[i, :], activations_transformed[i + 1, :])
             self.play(
                       ShowCreation(line), run_time=RUN_TIME)
