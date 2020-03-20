@@ -55,3 +55,31 @@ class AnimateActivitySingleRun(ThreeDScene):
             line = Line(activations_transformed[i, :], activations_transformed[i + 1, :])
             self.play(
                       ShowCreation(line), run_time=RUN_TIME)
+
+
+class StimAnim(GraphScene):
+    CONFIG = {
+        "x_min": -1,
+        "x_max": 20,
+        "y_min": -2,
+        "y_max": 2,
+        "graph_origin": LEFT,
+        "function_color": WHITE,
+        "axes_color": BLUE
+    }
+
+    def construct(self):
+        rnn_type = 'vanilla'
+        n_hidden = 24
+
+        flopper = Flipflopper(rnn_type=rnn_type, n_hidden=n_hidden)
+        stim = flopper.generate_flipflop_trials()
+        z = np.zeros(20)
+        x = np.arange(0, 20) - 1
+        y = stim['inputs'][0, :20, 1]
+
+        l= np.vstack((x,y, z))
+        self.setup_axes(animate=True)
+        for i in range(19):
+            line = Line(l[:, i], l[:, i+1])
+            self.play(ShowCreation(line), run_time=0.1)
