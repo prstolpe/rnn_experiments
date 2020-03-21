@@ -41,20 +41,52 @@ class AnimateActivitySingleRun(ThreeDScene):
         # self.activations = np.vstack(flopper.get_activations(stim))
         self.outputs = np.vstack(stim['output'])
         self.activations = self.outputs @ self.output_weights[0].T
+        self.inputs =
 
 
     def construct(self):
-        RUN_TIME = 0.02
+        outputs = self.outputs
+        def generate_output_mobjects(outputs):
+            first_bit = TextMobject(str(outputs[:, 0]))
+            first_bit.move_to(np.array([4, 0.75, 0]))
+            second_bit = TextMobject(str(outputs[:, 1]))
+            second_bit.next_to(first_bit, DOWN)
+            third_bit = TextMobject(str(outputs[:, 2]))
+            third_bit.next_to(second_bit, DOWN)
+
+            return first_bit, second_bit, third_bit
+        RUN_TIME = 0.7
 
         pca = skld.PCA(3)
         activations_transformed = pca.fit_transform(self.activations)
-        activations_transformed = activations_transformed * 0.5
-        dot = Dot(activations_transformed[0, :], size=0.2)
-        self.play(ShowCreation(dot), run_time=RUN_TIME)
-        for i in range(256):
-            line = Line(activations_transformed[i, :], activations_transformed[i + 1, :])
-            self.play(
-                      ShowCreation(line), run_time=RUN_TIME)
+        shape = Polygon(*activations_transformed[:1000, :], color=BLUE, width=0.1)
+        dot = Dot(activations_transformed[0, :], color=RED, size=1.2)
+        self.play(ShowCreation(shape),
+                  ShowCreation(dot),
+                  run_time=RUN_TIME)
+        first_bit, second_bit, third_bit = generate_output_mobjects(outputs[0, :])
+        self.play(ShowCreation(first_bit),
+                  ShowCreation(second_bit),
+                  ShowCreation(third_bit))
+
+
+        for i in range(100):
+            new_first_bit = TextMobject(str(self.outputs[i, 0]))
+            new_first_bit.move_to(np.array([4, 0.75, 0]))
+            new_second_bit = TextMobject(str(self.outputs[i, 1]))
+            new_second_bit.next_to(new_first_bit, DOWN)
+            new_third_bit = TextMobject(str(self.outputs[i, 2]))
+            new_third_bit.next_to(new_second_bit, DOWN)
+            new_first_bit, new_second_bit, new_third_bit = generate_output_mobjects(outputs[i, :])
+            new_dot = Dot(activations_transformed[i, :], color=RED, size=1.2)
+            self.play(Transform(dot, new_dot),
+                      Transform(first_bit, new_first_bit),
+                      Transform(second_bit, new_second_bit),
+                      Transform(third_bit, new_third_bit),
+                      run_time=0.2)
+            self.wait(0.3)
+            #dot = new_dot
+            # first_bit, second_bit, third_bit = new_first_bit, new_second_bit, new_third_bit
 
 
 class StimAnim(GraphScene, MappingCamera):
@@ -94,7 +126,7 @@ class AnimateFlipFlopLearning(ThreeDScene):
         stim = flopper.generate_flipflop_trials()
 
         _ = flopper.initial_train(stim, 10, True)
-        self.iterations = 50
+        self.iterations = 5
         self.collected_activations = []
         for i in range(self.iterations):
             self.collected_activations.append(np.vstack(flopper.get_activations(stim)))
@@ -106,18 +138,12 @@ class AnimateFlipFlopLearning(ThreeDScene):
 
         pca.fit(self.collected_activations[-1])
         self.set_camera_orientation(phi=60 * DEGREES, theta=-120 * DEGREES)
-        transformed_activations = pca.transform(self.collected_activations[0])
-
-        line = Polygon(*transformed_activations[:500, :],
-                       color=BLUE, width=0.1)
-        self.play(ShowCreation(line, run_time=0.1))
 
         for it in range(self.iterations):
             transformed_activations = pca.transform(self.collected_activations[it])
 
-            new_line = Polygon(*transformed_activations[:256, :],
-                        color=BLUE, width=0.1)
-            self.play(Transform(line, new_line, run_time=0.1))
-            self.remove(line)
+            line = Polygon(*transformed_activations[:256, :],
+                           color=BLUE, width=0.1)
+            self.add(line)
             self.wait(0.5)
-            line = new_line
+            self.remove(line)
