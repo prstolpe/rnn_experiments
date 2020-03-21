@@ -31,27 +31,27 @@ class AnimateActivitySingleRun(ThreeDScene):
         flopper = Flipflopper(rnn_type=rnn_type, n_hidden=n_hidden)
         stim = flopper.generate_flipflop_trials()
         # train the model
-        # flopper.train(stim, 4000, save_model=True)
+        flopper.train(stim, 4000, save_model=True)
 
         # if a trained model has been saved, it may also be loaded
-        flopper.load_model()
+        # flopper.load_model()
 
         self.weights = flopper.model.get_layer(flopper.hps['rnn_type']).get_weights()
         self.output_weights = flopper.model.get_layer('dense').get_weights()
-        # self.activations = np.vstack(flopper.get_activations(stim))
+        self.activations = np.vstack(flopper.get_activations(stim))
         self.outputs = np.vstack(stim['output'])
-        self.activations = self.outputs @ self.output_weights[0].T
-        self.inputs =
+        # self.activations = self.outputs @ self.output_weights[0].T
+        self.inputs = np.vstack(stim['inputs'])
 
 
     def construct(self):
         outputs = self.outputs
         def generate_output_mobjects(outputs):
-            first_bit = TextMobject(str(outputs[:, 0]))
+            first_bit = TextMobject(str(outputs[0]))
             first_bit.move_to(np.array([4, 0.75, 0]))
-            second_bit = TextMobject(str(outputs[:, 1]))
+            second_bit = TextMobject(str(outputs[1]))
             second_bit.next_to(first_bit, DOWN)
-            third_bit = TextMobject(str(outputs[:, 2]))
+            third_bit = TextMobject(str(outputs[2]))
             third_bit.next_to(second_bit, DOWN)
 
             return first_bit, second_bit, third_bit
@@ -59,7 +59,7 @@ class AnimateActivitySingleRun(ThreeDScene):
 
         pca = skld.PCA(3)
         activations_transformed = pca.fit_transform(self.activations)
-        shape = Polygon(*activations_transformed[:1000, :], color=BLUE, width=0.1)
+        shape = Polygon(*activations_transformed[:200, :], color=BLUE, width=0.1)
         dot = Dot(activations_transformed[0, :], color=RED, size=1.2)
         self.play(ShowCreation(shape),
                   ShowCreation(dot),
@@ -70,13 +70,7 @@ class AnimateActivitySingleRun(ThreeDScene):
                   ShowCreation(third_bit))
 
 
-        for i in range(100):
-            new_first_bit = TextMobject(str(self.outputs[i, 0]))
-            new_first_bit.move_to(np.array([4, 0.75, 0]))
-            new_second_bit = TextMobject(str(self.outputs[i, 1]))
-            new_second_bit.next_to(new_first_bit, DOWN)
-            new_third_bit = TextMobject(str(self.outputs[i, 2]))
-            new_third_bit.next_to(new_second_bit, DOWN)
+        for i in range(20):
             new_first_bit, new_second_bit, new_third_bit = generate_output_mobjects(outputs[i, :])
             new_dot = Dot(activations_transformed[i, :], color=RED, size=1.2)
             self.play(Transform(dot, new_dot),
