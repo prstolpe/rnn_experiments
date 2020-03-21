@@ -5,7 +5,7 @@ import multiprocessing as mp
 import numdifftools as nd
 from scipy.optimize import minimize
 from fixedpointfinder.build_utils import build_rnn_ds, build_gru_ds, build_lstm_ds
-from fixedpointfinder.minimization import Minimizer, adam_lstm
+from fixedpointfinder.minimization import Minimizer, adam_lstm, RecordableMinimizer
 from utilities.model_utils import build_sub_model_to
 import tensorflow as tf
 
@@ -682,6 +682,7 @@ class Tffixedpointfinder(FixedPointFinder):
         #  print(tf.reduce_mean(tuple))
         # jac = tape.jacobian(q, [tuple])
 
+
 class RecordingFixedpointfinder(Adamfixedpointfinder):
 
     adam_default_hps = {'alr_hps': {'decay_rate': 0.0005},
@@ -717,4 +718,83 @@ class RecordingFixedpointfinder(Adamfixedpointfinder):
                                       max_iters = max_iters,
                                       method = method,
                                       print_every = print_every)
+
+    def find_fixed_points(self, x0, inputs):
+        """Compute fixedpoints and determine the uniqueness as well as jacobian matrix.
+            Optimization can occur either joint or sequential.
+
+        Args:
+            x0: set of initial conditions to optimize from.
+
+            inputs: set of inputs to recurrent layer corresponding to initial conditions.
+
+        Returns:
+            List of fixedpointobjects that are unique and equipped with their repsective
+            jacobian matrix."""
+
+        if self.method == 'joint':
+            fixedpoints, recorded_points = self._joint_optimization(x0, inputs)
+        elif self.method == 'sequential':
+            fixedpoints = self._sequential_optimization(x0, inputs)
+        else:
+            raise ValueError('HyperParameter for adam optimizer: method must be either "joint"'
+                             'or "sequential". However, it was %s', self.method)
+
+        good_fps, bad_fps = self._handle_bad_approximations(fixedpoints)
+        unique_fps = self._find_unique_fixed_points(good_fps)
+
+        unique_fps = self._compute_jacobian(unique_fps)
+
+        return unique_fps, recorded_points
+
+    def _joint_optimization(self, x0, inputs):
+        """Function to perform joint optimization. All inputs and initial conditions
+        will be optimized simultaneously.
+
+        Args:
+            x0: numpy array containing a set of initial conditions. Must have dimensions
+            [n_init x n_units]. No default.
+
+            inputs: numpy array containing a set of inputs to the recurrent layer corresponding
+            to the activations in x0. Must have dimensions [n_init x n_units]. No default.
+
+        Returns:
+            Fixedpointobject. See _create_fixedpoint_object for further documenation."""
+
+        if self.rnn_type == 'vanilla':
+            fun, jac_fun = build_rnn_ds(self.weights, self.n_hidden, inputs, self.method)
+        elif self.rnn_type == 'gru':
+            fun, jac_fun = build_gru_ds(self.weights, self.n_hidden, inputs, self.method)
+        elif self.rnn_type == 'lstm':
+            fun, jac_fun = build_lstm_ds(self.weights, inputs, self.n_hidden, self.method)
+        else:
+            raise ValueError('Hyperparameter rnn_type must be one of'
+                             '[vanilla, gru, lstm] but was %s', self.rnn_type)
+
+        if self.rnn_type == 'lstm':
+            fps = adam_lstm(fun, x0,
+                            epsilon=self.epsilon,
+                            alr_decayr=self.alr_decayr,
+                            max_iter=self.max_iters,
+                            print_every=self.print_every,
+                            init_agnc=self.agnc_normclip,
+                            agnc_decayr=self.agnc_decayr,
+                            verbose=self.verbose)
+            fun, jac_fun = build_lstm_ds(self.weights, inputs,
+                                                               self.n_hidden, 'sequential')
+            fixedpoints = self._create_fixedpoint_object(fun, fps, x0, inputs)
+            recorded_points = []
+        else:
+            minimizer = RecordableMinimizer(epsilon=self.epsilon,
+                                  alr_decayr=self.alr_decayr,
+                                  max_iter=self.max_iters,
+                                  print_every=self.print_every,
+                                  init_agnc=self.agnc_normclip,
+                                  agnc_decayr=self.agnc_decayr,
+                                  verbose=self.verbose)
+            fps, recorded_points = minimizer.adam_optimization(fun, x0)
+
+            fixedpoints = self._create_fixedpoint_object(fun, fps, x0, inputs)
+
+        return fixedpoints, recorded_points
 
