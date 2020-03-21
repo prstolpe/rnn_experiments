@@ -706,7 +706,7 @@ class RecordingFixedpointfinder(Adamfixedpointfinder):
                  method = adam_default_hps['adam_hps']['method'],
                  print_every = adam_default_hps['adam_hps']['print_every']):
 
-        Adamfixedpointfinder.__init__(weights, rnn_type,
+        Adamfixedpointfinder.__init__(self, weights, rnn_type,
                                       q_threshold=q_threshold,
                                       tol_unique=tol_unique,
                                       verbose=verbose,
