@@ -6,7 +6,6 @@ import tensorflow as tf
 from rnnconstruction.build_utils import build_rnn_inducer, build_gru_inducer
 
 
-
 class Rnnconstructor:
 
     adam_default_hps = {'alr_hps': {'decay_rate': 0.0001},

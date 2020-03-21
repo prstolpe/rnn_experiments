@@ -682,3 +682,39 @@ class Tffixedpointfinder(FixedPointFinder):
         #  print(tf.reduce_mean(tuple))
         # jac = tape.jacobian(q, [tuple])
 
+class RecordingFixedpointfinder(Adamfixedpointfinder):
+
+    adam_default_hps = {'alr_hps': {'decay_rate': 0.0005},
+                        'agnc_hps': {'norm_clip': 1.0,
+                                     'decay_rate': 1e-03},
+                        'adam_hps': {'epsilon': 1e-03,
+                                     'max_iters': 5000,
+                                     'method': 'joint',
+                                     'print_every': 200}}
+
+    def __init__(self, weights, rnn_type,
+                 q_threshold=FixedPointFinder._default_hps['q_threshold'],
+                 tol_unique=FixedPointFinder._default_hps['tol_unique'],
+                 verbose=FixedPointFinder._default_hps['verbose'],
+                 random_seed=FixedPointFinder._default_hps['random_seed'],
+                 alr_decayr=adam_default_hps['alr_hps']['decay_rate'],
+                 agnc_normclip=adam_default_hps['agnc_hps']['norm_clip'],
+                 agnc_decayr=adam_default_hps['agnc_hps']['decay_rate'],
+                 epsilon=adam_default_hps['adam_hps']['epsilon'],
+                 max_iters = adam_default_hps['adam_hps']['max_iters'],
+                 method = adam_default_hps['adam_hps']['method'],
+                 print_every = adam_default_hps['adam_hps']['print_every']):
+
+        Adamfixedpointfinder.__init__(weights, rnn_type,
+                                      q_threshold=q_threshold,
+                                      tol_unique=tol_unique,
+                                      verbose=verbose,
+                                      random_seed=random_seed,
+                                      alr_decayr=alr_decayr,
+                                      agnc_normclip=agnc_normclip,
+                                      agnc_decayr=agnc_decayr,
+                                      epsilon=epsilon,
+                                      max_iters = max_iters,
+                                      method = method,
+                                      print_every = print_every)
+
