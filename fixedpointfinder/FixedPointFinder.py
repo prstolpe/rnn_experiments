@@ -5,7 +5,7 @@ import multiprocessing as mp
 import numdifftools as nd
 from scipy.optimize import minimize
 from fixedpointfinder.build_utils import build_rnn_ds, build_gru_ds, build_lstm_ds
-from fixedpointfinder.minimization import adam_optimizer, adam_lstm
+from fixedpointfinder.minimization import Minimizer, adam_lstm
 from utilities.model_utils import build_sub_model_to
 import tensorflow as tf
 
@@ -439,14 +439,14 @@ class Adamfixedpointfinder(FixedPointFinder):
                                                                self.n_hidden, 'sequential')
             fixedpoints = self._create_fixedpoint_object(fun, fps, x0, inputs)
         else:
-            fps = adam_optimizer(fun, x0,
-                                 epsilon=self.epsilon,
-                                 alr_decayr=self.alr_decayr,
-                                 max_iter=self.max_iters,
-                                 print_every=self.print_every,
-                                 init_agnc=self.agnc_normclip,
-                                 agnc_decayr=self.agnc_decayr,
-                                 verbose=self.verbose)
+            minimizer = Minimizer(epsilon=self.epsilon,
+                                  alr_decayr=self.alr_decayr,
+                                  max_iter=self.max_iters,
+                                  print_every=self.print_every,
+                                  init_agnc=self.agnc_normclip,
+                                  agnc_decayr=self.agnc_decayr,
+                                  verbose=self.verbose)
+            fps = minimizer.adam_optimization(fun, x0)
 
             fixedpoints = self._create_fixedpoint_object(fun, fps, x0, inputs)
 
@@ -478,14 +478,14 @@ class Adamfixedpointfinder(FixedPointFinder):
                                  '[vanilla, gru, lstm] but was %s', self.rnn_type)
         # TODO: implement parallel sequential optimization
 
-            fps[i, :] = adam_optimizer(fun, x0[i, :],
-                                       epsilon=self.epsilon,
-                                       alr_decayr=self.alr_decayr,
-                                       max_iter=self.max_iters,
-                                       print_every=self.print_every,
-                                       init_agnc=self.agnc_normclip,
-                                       agnc_decayr=self.agnc_decayr,
-                                       verbose=self.verbose)
+            minimizer = Minimizer(epsilon=self.epsilon,
+                                 alr_decayr=self.alr_decayr,
+                                 max_iter=self.max_iters,
+                                 print_every=self.print_every,
+                                 init_agnc=self.agnc_normclip,
+                                 agnc_decayr=self.agnc_decayr,
+                                 verbose=self.verbose)
+            fps[i, :] = minimizer.adam_optimization(fun, x0)
 
         fixedpoints = self._create_fixedpoint_object(fun, fps, x0, inputs)
 
