@@ -165,7 +165,7 @@ class Flipflopper(object):
 
     def _save_model(self):
         '''Save trained model to JSON file.'''
-        self.model.save(os.getcwd()+"/saved/"+self.hps['rnn_type']+"model.h5")
+        self.model.save(os.getcwd()+"/fixedpointfinder/saved/"+self.hps['rnn_type']+"model.h5")
         print("Saved "+self.hps['rnn_type']+" model.")
 
     def load_model(self):
@@ -274,6 +274,56 @@ class PretrainableFlipflopper(Flipflopper):
                                tf.convert_to_tensor(stim['output'], dtype=tf.float32))
 
         return score
+
+
+class RetrainableFlipflopper(Flipflopper):
+
+    def __init__(self, rnn_type: str = 'vanilla', n_hidden: int = 24):
+        super().__init__(rnn_type, n_hidden)
+
+    def initial_train(self, stim, epochs, save_model: bool = True):
+        '''Function to train an RNN model This function will save the trained model afterwards.
+
+        Args:
+            stim: dict containing 'inputs' and 'output' as input and target data for training the model.
+
+                'inputs': [n_batch x n_time x n_bits] numpy array containing
+                input pulses.
+                'outputs': [n_batch x n_time x n_bits] numpy array specifying
+                the correct behavior of the FlipFlop memory device.
+
+        Returns:
+            None.'''
+
+        self.model.compile(optimizer="adam", loss="mse",
+                  metrics=['accuracy'])
+        history = self.model.fit(tf.convert_to_tensor(stim['inputs'], dtype=tf.float32),
+                            tf.convert_to_tensor(stim['output'], dtype=tf.float32), epochs=epochs)
+        if save_model:
+            self._save_model()
+        return history
+
+    def continued_train(self, stim, epochs, save_model: bool = True):
+        '''Function to train an RNN model This function will save the trained model afterwards.
+
+        Args:
+            stim: dict containing 'inputs' and 'output' as input and target data for training the model.
+
+                'inputs': [n_batch x n_time x n_bits] numpy array containing
+                input pulses.
+                'outputs': [n_batch x n_time x n_bits] numpy array specifying
+                the correct behavior of the FlipFlop memory device.
+
+        Returns:
+            None.'''
+
+        self.load_model()
+        history = self.model.fit(tf.convert_to_tensor(stim['inputs'], dtype=tf.float32),
+                            tf.convert_to_tensor(stim['output'], dtype=tf.float32), epochs=epochs)
+        if save_model:
+            self._save_model()
+        return history
+
 
 
 class SimplerRNN(SimpleRNN):

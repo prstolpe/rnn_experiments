@@ -132,3 +132,5 @@ dmypy.json
 Tex/
 videos/
 *.mp4
+
+./saved/
