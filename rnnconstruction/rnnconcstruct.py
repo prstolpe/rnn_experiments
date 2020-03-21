@@ -1,7 +1,7 @@
 
 from fixedpointfinder.build_utils import build_rnn_ds, build_gru_ds
 import autograd.numpy as np
-from fixedpointfinder.minimization import adam_weights_optimizer
+from fixedpointfinder.minimization import Minimizer
 import tensorflow as tf
 from rnnconstruction.build_utils import build_rnn_inducer, build_gru_inducer
 
@@ -61,14 +61,14 @@ class Rnnconstructor:
 
     def train_recurrentweights(self, weights):
 
-        weights = adam_weights_optimizer(self.fun, weights, 0,
-                                         epsilon=self.epsilon,
-                                         alr_decayr=self.alr_decayr,
-                                         max_iter=self.max_iters,
-                                         print_every=self.print_every,
-                                         init_agnc=self.agnc_normclip,
-                                         agnc_decayr=self.agnc_decayr,
-                                         verbose=self.verbose)
+        minimizer = Minimizer(epsilon=self.epsilon,
+                              alr_decayr=self.alr_decayr,
+                              max_iter=self.max_iters,
+                              print_every=self.print_every,
+                              init_agnc=self.agnc_normclip,
+                              agnc_decayr=self.agnc_decayr,
+                              verbose=self.verbose)
+        weights = minimizer.adam_weights_optimizer(self.fun, weights, 0)
 
         return weights
 
