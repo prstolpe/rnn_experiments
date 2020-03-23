@@ -3,7 +3,11 @@ import os
 import pyclbr
 import numpy as np
 import sklearn.decomposition as skld
+
+import sys
+sys.path.append("/Users/Raphael/rnn_dynamical_systems")
 from fixedpointfinder.three_bit_flip_flop import Flipflopper
+from rnnconstruction.serialized_gru import SerializedGru
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -92,23 +96,6 @@ class ThreebitflipflopAnim(ThreeDScene):
 
         return diagonal_evals, evecs_c
 
-
-    def translate_to_diagonal(self):
-        evals, evecs = np.linalg.eig(self.weights[1])
-        diagonal_evals = np.real(np.diag(evals))
-        real_parts = evals.real
-        img_parts = evals.imag
-        evecs_c = np.real(evecs)
-        for i in range(len(self.weights[1])):
-            if img_parts > 0:
-                diagonal_evals[i, i + 1] = img_parts[i]
-                diagonal_evals[i + 1, i] = img_parts[i + 1]
-
-                evecs_c[:, i] = np.real(evecs[:, i])
-                evecs_c[:, i+1] = np.imag(evecs[:, i])
-
-        return diagonal_evals, evecs_c
-
     def construct(self):
 
         diagonal_evals, c, stretch = self.serialize_recurrent_layer()
@@ -120,7 +107,7 @@ class ThreebitflipflopAnim(ThreeDScene):
         complex_activations = self.translate_to_complex(self.activations, 1 / 5 * c_inv)
         complex_activations = complex_activations @ all_diagonal_evals
         print(complex_activations.shape)
-        self.activations = np.vstack(self.activations)
+        # self.activations = np.vstack(self.activations)
         activations_transformed = pca_activations.fit_transform(complex_activations)
 
         vector = Vector(activations_transformed[0, :])
@@ -162,3 +149,67 @@ class ThreebitflipflopAnim(ThreeDScene):
 
                     old_point = end_point
                     vector = new_vector
+
+
+class SerializedGruAnim(ThreeDScene):
+
+    def setup(self):
+        rnn_type = 'gru'
+        n_hidden = 24
+
+        flopper = Flipflopper(rnn_type=rnn_type, n_hidden=n_hidden)
+        stim = flopper.generate_flipflop_trials()
+        # train the model
+        # flopper.train(stim, 4000, save_model=True)
+
+        # if a trained model has been saved, it may also be loaded
+        flopper.load_model()
+
+        self.weights = flopper.model.get_layer(flopper.hps['rnn_type']).get_weights()
+        self.output_weights = flopper.model.get_layer('dense').get_weights()
+        # self.activations = np.vstack(flopper.get_activations(stim))
+        self.outputs = np.vstack(stim['output'])
+        self.activations = self.outputs @ self.output_weights[0].T
+
+        self.sGru = SerializedGru(self.weights, n_hidden)
+
+        self.complex_activations = self.activations @ (1/5 * self.sGru.h_c_inv)
+
+    def construct(self):
+
+        pca = skld.PCA(3)
+
+        transformed_activations = pca.fit_transform(self.complex_activations)
+
+        shape = Polygon(*transformed_activations[:200, :], color=BLUE, width=0.1)
+        vector = Vector(transformed_activations[0, :], color=RED_B)
+        self.play(ShowCreation(shape),
+                  ShowCreation(vector))
+
+        n_evals = []
+        for i in range(3):
+            print(len(self.sGru.serialized[0][i]))
+            n_evals.append(len(self.sGru.serialized[0][i]))
+
+        print(np.max(n_evals))
+        for timestep in range(20):
+
+            imaginary_activations = self.complex_activations[timestep, :]
+
+            z_iterator = 0
+            h_iterator = 0
+            for rotation in range(np.max(n_evals)):
+                r_vector = imaginary_activations @ self.sGru.serialized[0][1][rotation]
+                if z_iterator < 14:
+                    z_vector = imaginary_activations @ self.sGru.serialized[0][0][z_iterator]
+                    z_iterator += 1
+                h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized[0][0][h_iterator]
+                if h_iterator < 14:
+                    h_iterator += 1
+
+                imaginary_activations = self.complex_activations[timestep, :] + z_vector * imaginary_activations + \
+                                        (1 - z_vector) * h_vector
+
+                new_point = pca.transform(imaginary_activations.reshape(1,-1))[0]
+                new_vector = Vector(new_point, color=RED_B)
+                self.play(Transform(vector, new_vector), run_time=0.4)
