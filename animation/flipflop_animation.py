@@ -173,7 +173,7 @@ class SerializedGruAnim(ThreeDScene):
 
         self.sGru = SerializedGru(self.weights, n_hidden)
 
-        self.complex_activations = self.activations @ (1/5 * self.sGru.h_c_inv)
+        self.complex_activations = self.activations @ (1/4 * self.sGru.h_c_inv)
 
     def construct(self):
 
@@ -183,8 +183,38 @@ class SerializedGruAnim(ThreeDScene):
 
         shape = Polygon(*transformed_activations[:200, :], color=BLUE, width=0.1)
         vector = Vector(transformed_activations[0, :], color=RED_B)
+
+        z_vector = (self.complex_activations[0, :] @ self.sGru.serialized[0][0][0]) * self.complex_activations[0, :]
+        z_transformed = pca.transform(z_vector.reshape(1,-1))[0]
+        z_arrow = Vector(z_transformed, color=GREEN, width=0.1)
+
+        r_vector = self.complex_activations[0, :] @ self.sGru.serialized[0][1][0]
+        r_transformed = pca.transform(r_vector.reshape(1, -1))[0]
+        r_arrow = Vector(r_transformed, color=YELLOW, width=0.1)
+
+        second_vector = (1-z_vector) * (r_vector * self.complex_activations[0, :]) @ self.sGru.serialized[0][0][0]
+        second_transformed = pca.transform(second_vector.reshape(1, -1))[0]
+        second_arrow = Arrow(z_arrow, second_transformed, color=YELLOW, width=0.1)
+
+        self.play(ShowCreation(TextMobject("GRU vector computation").to_edge(UP)))
         self.play(ShowCreation(shape),
-                  ShowCreation(vector))
+                  ShowCreation(vector),
+                  ShowCreation(z_arrow),
+                  ShowCreation(second_arrow))
+                  #ShowCreation(r_arrow))
+
+        # TextMobjects
+        r_text = TextMobject("reset gate", color=YELLOW)
+        z_text = TextMobject("update gate", color=GREEN)
+        h_text = TextMobject("activation", color=RED_B)
+        r_text.move_to(np.array([5, 0.75, 0]))
+        z_text.next_to(r_text, DOWN)
+        h_text.next_to(z_text, DOWN)
+
+
+        self.play(ShowCreation(r_text),
+                  ShowCreation(z_text),
+                  ShowCreation(h_text))
 
         n_evals = []
         for i in range(3):
@@ -206,10 +236,21 @@ class SerializedGruAnim(ThreeDScene):
                 h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized[0][0][h_iterator]
                 if h_iterator < 14:
                     h_iterator += 1
+                # transformed_imaginary = pca.transform(imaginary_activations.reshape(1,-1))[0]
+                z_transformed = pca.transform(z_vector.reshape(1, -1))[0]
+                r_transformed = pca.transform(r_vector.reshape(1, -1))[0]
+
+                new_z_arrow = #Vector(z_transformed, color=GREEN)
+                new_r_arrow = #Vector(r_transformed, color=YELLOW)
 
                 imaginary_activations = self.complex_activations[timestep, :] + z_vector * imaginary_activations + \
                                         (1 - z_vector) * h_vector
-
+                # TODO: should vector grow from origin or tip of activation ?
+                # TODO: show vectors z_vector*activation and 1-z_vector * h_vector to create vector pointing to tip
                 new_point = pca.transform(imaginary_activations.reshape(1,-1))[0]
                 new_vector = Vector(new_point, color=RED_B)
-                self.play(Transform(vector, new_vector), run_time=0.4)
+                self.play(Transform(z_arrow, new_z_arrow),
+                          Transform(r_arrow, new_r_arrow),
+                          Transform(vector, new_vector),
+                          run_time=0.3)
+
