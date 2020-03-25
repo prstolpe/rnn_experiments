@@ -4,7 +4,7 @@ class SerializedGru:
 
     def __init__(self, recurrent_weights, n_hidden):
         self.n_hidden = n_hidden
-        self.U_z, self.U_r, self.U_h = self.split_weights(recurrent_weights)
+        self.U_z, self.U_r, self.U_h, self.W_z, self.W_r, self.W_h = self.split_weights(recurrent_weights)
         self.serialized = []
 
         self.serialized.append(self.serialize_recurrent_layer(self.U_z))
@@ -18,11 +18,11 @@ class SerializedGru:
     def split_weights(self, weights):
         z, r, h = np.arange(0, self.n_hidden), np.arange(self.n_hidden, 2 * self.n_hidden), \
                   np.arange(2 * self.n_hidden, 3 * self.n_hidden)
-        # W_z, W_r, W_h = weights[0][:, z], weights[0][:, r], weights[0][:, h]
+        W_z, W_r, W_h = weights[0][:, z], weights[0][:, r], weights[0][:, h]
         U_z, U_r, U_h = weights[1][:, z], weights[1][:, r], weights[1][:, h]
         # b_z, b_r, b_h = weights[2][0, z], weights[2][0, r], weights[2][0, h]
 
-        return U_z, U_r, U_h
+        return U_z, U_r, U_h, W_z, W_r, W_h
 
     def translate_to_complex(self):
         pass

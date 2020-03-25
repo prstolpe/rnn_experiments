@@ -174,14 +174,25 @@ class SerializedGruAnim(ThreeDScene):
         self.sGru = SerializedGru(self.weights, n_hidden)
 
         self.complex_activations = self.activations @ (1/4 * self.sGru.h_c_inv)
+        self.complex_activations = np.vstack((np.zeros(n_hidden), self.complex_activations[:-1, :]))
+
+        inputs = np.vstack(stim['inputs'])
+        self.r_input = inputs @ self.sGru.W_r
+        self.z_input = inputs @ self.sGru.W_z
+        self.h_input = inputs @ self.sGru.W_h
+
+        self.r_input_complex = self.r_input @ (1/4 * self.sGru.h_c_inv)
+        self.z_input_complex = self.z_input @ (1 / 4 * self.sGru.h_c_inv)
+        self.h_input_complex = self.h_input @ (1 / 4 * self.sGru.h_c_inv)
+        print(self.r_input_complex.shape)
 
     def construct(self):
 
         pca = skld.PCA(3)
 
-        transformed_activations = pca.fit_transform(self.complex_activations)
+        transformed_activations = pca.fit_transform(self.complex_activations[0:, :])
 
-        shape = Polygon(*transformed_activations[:200, :], color=BLUE, width=0.1)
+        shape = Polygon(*transformed_activations[:1000, :], color=BLUE, width=0.1)
         vector = Vector(transformed_activations[0, :], color=RED_B)
 
         z_vector = (self.complex_activations[0, :] @ self.sGru.serialized[0][0][0]) * self.complex_activations[0, :]
@@ -196,7 +207,10 @@ class SerializedGruAnim(ThreeDScene):
         second_transformed = pca.transform(second_vector.reshape(1, -1))[0]
         second_arrow = Vector(second_transformed, color=YELLOW, width=0.1)
 
-        self.play(ShowCreation(TextMobject("GRU vector computation").to_edge(UP)))
+        timestep = 0
+        timestepscounter = TextMobject("Timestep:" , str(timestep))
+        self.play(ShowCreation(TextMobject("GRU vector computation").to_edge(UP)),
+                  ShowCreation(timestepscounter.to_edge(LEFT)))
         self.play(ShowCreation(shape),
                   ShowCreation(vector),
                   ShowCreation(z_arrow),
@@ -222,26 +236,37 @@ class SerializedGruAnim(ThreeDScene):
             n_evals.append(len(self.sGru.serialized[0][i]))
 
         print(np.max(n_evals))
-        for timestep in range(5):
+        for timestep in range(10):
 
             imaginary_activations = self.complex_activations[timestep, :]
+            new_timestepscounter = TextMobject("Timestep:" , str(timestep)).to_edge(LEFT)
+            self.play(Transform(timestepscounter, new_timestepscounter))
 
             z_iterator = 0
             h_iterator = 0
             for rotation in range(np.max(n_evals)):
                 r_vector = imaginary_activations @ self.sGru.serialized[0][1][rotation]
+                if rotation == 0:
+                    r_vector = r_vector + self.r_input_complex[timestep, :]
                 if z_iterator < 14:
                     z_vector = imaginary_activations @ self.sGru.serialized[0][0][z_iterator]
                     z_iterator += 1
-                h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized[0][0][h_iterator]
+                if rotation == 0:
+                    z_vector = z_vector + self.z_input_complex[timestep, :]
+
+                if rotation == 0:
+                    h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized[0][0][h_iterator] + self.h_input_complex[timestep, :]
+                else:
+                    h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized[0][0][h_iterator]
                 if h_iterator < 14:
                     h_iterator += 1
-                # transformed_imaginary = pca.transform(imaginary_activations.reshape(1,-1))[0]
-                # z_transformed = pca.transform(z_vector.reshape(1, -1))[0]
-                # r_transformed = pca.transform(r_vector.reshape(1, -1))[0]
 
-                # new_z_arrow = Vector(z_transformed, color=GREEN)
-                # new_r_arrow = Vector(r_transformed, color=YELLOW)
+                # transformed_imaginary = pca.transform(imaginary_activations.reshape(1,-1))[0]
+                z_transformed = pca.transform(z_vector.reshape(1, -1))[0]
+                r_transformed = pca.transform(r_vector.reshape(1, -1))[0]
+
+                new_z_arrow = Vector(z_transformed, color=GREEN)
+                new_r_arrow = Vector(r_transformed, color=YELLOW)
 
                 update = z_vector * imaginary_activations
                 update_transformed = pca.transform(update.reshape(1, -1))[0]
@@ -256,7 +281,7 @@ class SerializedGruAnim(ThreeDScene):
                 # TODO: show vectors z_vector*activation and 1-z_vector * h_vector to create vector pointing to tip -> not so good
                 new_point = pca.transform(imaginary_activations.reshape(1,-1))[0]
                 new_vector = Vector(new_point, color=RED_B)
-                self.play(Transform(z_arrow, new_update),
+                self.play(Transform(z_arrow, new_z_arrow),
                           Transform(second_arrow, new_reset),
                           Transform(vector, new_vector),
                           run_time=0.3)
