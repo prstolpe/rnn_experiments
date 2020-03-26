@@ -21,20 +21,15 @@ Fixedpointfinder comes in mutliple child classes. Those include:
 1. Begin by building and training an RNN. Fixedpointfinder works with any framework. It simply requires, 
 parameters of the recurrent layer, the `rnn_type` and a set of hyperparameters.
 
-2. Build an instance of Fixedpointfinder` :`
-
-`fpf = Adamfixedpointfinder(weights, rnn_type, **hyperparameters)` 
-
+2. Build an instance of `Fixedpointfinder` :
+`fpf = Adamfixedpointfinder(weights, rnn_type, **hyperparameters)`
 using the parameters of the recurrent layer, rnn_type as one of `vanilla`, `gru` and hyperparameters for optimization
 
 3. Sample states or states and inputs to recurrent layer from a set of activations recorded during a trial of the task of interest.
 
-4.  Find fixed points:
-`fps = fpf.find_fixed_points(states, inputs)`
-
+4.  Find fixed points: `fps = fpf.find_fixed_points(states, inputs)`
 Note that inputs can be zero, if only the long term behavior of the system is of interest. This may be for instance if the 
 input is made up of pulses. 
-
 This function will return a fixedpointobject containing the fixedpoint location, initial state from which it was derived, 
 jacobian matrix as linearization around the fixed point and function evaluation at the fixed point.
 
