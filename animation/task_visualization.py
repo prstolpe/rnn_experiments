@@ -123,7 +123,7 @@ class AnimateFpfOptimization(ThreeDScene):
 
     def setup(self):
 
-        rnn_type = 'gru'
+        rnn_type = 'vanilla'
         n_hidden = 24
 
         # initialize Flipflopper class
@@ -148,7 +148,7 @@ class AnimateFpfOptimization(ThreeDScene):
         # initialize adam fpf
         fpf = RecordingFixedpointfinder(weights, rnn_type,
                                         q_threshold=1e-12,
-                                        epsilon=0.001,
+                                        epsilon=0.01,
                                         alr_decayr=0.0001,
                                         max_iters=7000)
         # sample states, i.e. a number of ICs
@@ -172,29 +172,30 @@ class AnimateFpfOptimization(ThreeDScene):
 
         sphere = Polygon(*transformed_activations[:500, :], width=0.05, color=BLUE)
         self.set_camera_orientation(phi=70 * DEGREES, theta=-120 * DEGREES)
+
         self.play(ShowCreation(sphere))
         initial_points = self.recorded_points[0]
         transformed_points = pca.transform(initial_points)
         dots = VGroup(*[Dot(transformed_point, color=RED_B, size=0.15) for transformed_point in transformed_points])
 
         k = 0
-        info_text = ["Iteration:", str(k * 200)]
-        info_text_mob = TextMobject(*info_text)
-        info_text_mob.to_edge()
+        #info_text = ["Iteration:", str(k * 200)]
+        #info_text_mob = TextMobject(*info_text)
+        #info_text_mob.to_edge()
 
-        self.play(ShowCreation(dots),
-                  ShowCreation(info_text_mob))
+        self.play(ShowCreation(dots))
+                  # ShowCreation(info_text_mob))
 
         for initial_points in self.recorded_points:
-            new_info_text = ["Iteration:", str(k * 200)]
-            new_info_text_mob = TextMobject(*new_info_text)
-            new_info_text_mob.to_edge()
+            # new_info_text = ["Iteration:", str(k * 200)]
+            # new_info_text_mob = TextMobject(*new_info_text)
+            # new_info_text_mob.to_edge()
 
             transformed_points = pca.transform(initial_points)
 
             new_dots = VGroup(*[Dot(transformed_point, color=RED_B, size=0.15) for transformed_point in transformed_points])
-            self.play(Transform(dots, new_dots),
-                      Transform(info_text_mob, new_info_text_mob))
+            self.play(Transform(dots, new_dots))
+                      # Transform(info_text_mob, new_info_text_mob))
             self.wait(0.3)
             k += 1
 

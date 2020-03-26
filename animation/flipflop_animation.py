@@ -167,14 +167,14 @@ class SerializedGruAnim(ThreeDScene):
 
         self.weights = flopper.model.get_layer(flopper.hps['rnn_type']).get_weights()
         self.output_weights = flopper.model.get_layer('dense').get_weights()
-        # self.activations = np.vstack(flopper.get_activations(stim))
+        self.activations = np.vstack(flopper.get_activations(stim))
         self.outputs = np.vstack(stim['output'])
-        self.activations = self.outputs @ self.output_weights[0].T
+        # self.activations = self.outputs @ self.output_weights[0].T
 
         self.sGru = SerializedGru(self.weights, n_hidden)
 
         self.complex_activations = self.activations @ (1/4 * self.sGru.h_c_inv)
-        self.complex_activations = np.vstack((np.zeros(n_hidden), self.complex_activations[:-1, :]))
+        # self.complex_activations = np.vstack((np.zeros(n_hidden), self.complex_activations[:-1, :]))
 
         inputs = np.vstack(stim['inputs'])
         self.r_input = inputs @ self.sGru.W_r
@@ -184,28 +184,23 @@ class SerializedGruAnim(ThreeDScene):
         self.r_input_complex = self.r_input @ (1/4 * self.sGru.h_c_inv)
         self.z_input_complex = self.z_input @ (1 / 4 * self.sGru.h_c_inv)
         self.h_input_complex = self.h_input @ (1 / 4 * self.sGru.h_c_inv)
-        print(self.r_input_complex.shape)
 
     def construct(self):
 
         pca = skld.PCA(3)
 
-        transformed_activations = pca.fit_transform(self.complex_activations[0:, :])
+        transformed_activations = pca.fit_transform(self.complex_activations)
 
         shape = Polygon(*transformed_activations[:1000, :], color=BLUE, width=0.1)
         vector = Vector(transformed_activations[0, :], color=RED_B)
 
-        z_vector = (self.complex_activations[0, :] @ self.sGru.serialized[0][0][0]) * self.complex_activations[0, :]
+        z_vector = (self.complex_activations[0, :] @ self.sGru.serialized[0][0][0])
         z_transformed = pca.transform(z_vector.reshape(1,-1))[0]
         z_arrow = Vector(z_transformed, color=GREEN, width=0.1)
 
         r_vector = self.complex_activations[0, :] @ self.sGru.serialized[0][1][0]
         r_transformed = pca.transform(r_vector.reshape(1, -1))[0]
         r_arrow = Vector(r_transformed, color=YELLOW, width=0.1)
-
-        second_vector = (1-z_vector) * ((r_vector * self.complex_activations[0, :]) @ self.sGru.serialized[0][0][0])
-        second_transformed = pca.transform(second_vector.reshape(1, -1))[0]
-        second_arrow = Vector(second_transformed, color=YELLOW, width=0.1)
 
         timestep = 0
         timestepscounter = TextMobject("Timestep:" , str(timestep))
@@ -214,8 +209,7 @@ class SerializedGruAnim(ThreeDScene):
         self.play(ShowCreation(shape),
                   ShowCreation(vector),
                   ShowCreation(z_arrow),
-                  ShowCreation(second_arrow))
-                  #ShowCreation(r_arrow))
+                  ShowCreation(r_arrow))
 
         # TextMobjects
         r_text = TextMobject("reset gate", color=YELLOW)
@@ -268,13 +262,6 @@ class SerializedGruAnim(ThreeDScene):
                 new_z_arrow = Vector(z_transformed, color=GREEN)
                 new_r_arrow = Vector(r_transformed, color=YELLOW)
 
-                update = z_vector * imaginary_activations
-                update_transformed = pca.transform(update.reshape(1, -1))[0]
-                reset = (1 - z_vector) * h_vector
-                reset_transformed = pca.transform(reset.reshape(1, -1))[0]
-
-                new_update = Vector(update_transformed, color=GREEN, width=0.1)
-                new_reset = Vector(reset_transformed, color=YELLOW, width=0.1)
                 imaginary_activations = self.complex_activations[timestep, :] + z_vector * imaginary_activations + \
                                         (1 - z_vector) * h_vector
                 # TODO: should vector grow from origin or tip of activation ? -> probably origin
@@ -282,7 +269,7 @@ class SerializedGruAnim(ThreeDScene):
                 new_point = pca.transform(imaginary_activations.reshape(1,-1))[0]
                 new_vector = Vector(new_point, color=RED_B)
                 self.play(Transform(z_arrow, new_z_arrow),
-                          Transform(second_arrow, new_reset),
+                          Transform(r_arrow, new_r_arrow),
                           Transform(vector, new_vector),
                           run_time=0.3)
 
