@@ -5,7 +5,7 @@ import numpy as np
 import sklearn.decomposition as skld
 
 import sys
-sys.path.append("/Users/Raphael/rnn_dynamical_systems")
+sys.path.append("/Users/Raphael//rnn_dynamical_systems")
 from fixedpointfinder.three_bit_flip_flop import Flipflopper
 from rnnconstruction.serialized_gru import SerializedGru
 

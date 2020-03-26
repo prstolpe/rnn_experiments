@@ -369,7 +369,7 @@ class Adamfixedpointfinder(FixedPointFinder):
         bc, ec, wn = COLORS["HEADER"], COLORS["ENDC"], COLORS["WARNING"]
         print(f"{wn}HyperParameters for adam{ec}: \n"
               f" learning rate - {self.epsilon}\n "
-              f"maximum iterations - {self.method}\n"
+              f"maximum iterations - {self.max_iters}\n"
               f"print every {self.print_every} iterations\n"
               f"performing {self.method} optimization\n"
               f"-----------------------------------------\n")
@@ -479,12 +479,12 @@ class Adamfixedpointfinder(FixedPointFinder):
         # TODO: implement parallel sequential optimization
 
             minimizer = Minimizer(epsilon=self.epsilon,
-                                 alr_decayr=self.alr_decayr,
-                                 max_iter=self.max_iters,
-                                 print_every=self.print_every,
-                                 init_agnc=self.agnc_normclip,
-                                 agnc_decayr=self.agnc_decayr,
-                                 verbose=self.verbose)
+                                  alr_decayr=self.alr_decayr,
+                                  max_iter=self.max_iters,
+                                  print_every=self.print_every,
+                                  init_agnc=self.agnc_normclip,
+                                  agnc_decayr=self.agnc_decayr,
+                                  verbose=self.verbose)
             fps[i, :] = minimizer.adam_optimization(fun, x0)
 
         fixedpoints = self._create_fixedpoint_object(fun, fps, x0, inputs)
