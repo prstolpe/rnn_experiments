@@ -71,8 +71,14 @@ def plot_fixed_points(activations, fps, n_points, scale):
         scale = scale
         for fp in fps:
 
-            # trace = np.matrix.trace(fp['jac'])
-            # det = np.linalg.det(fp['jac'])
+            trace = np.matrix.trace(fp['jac'])
+            det = np.linalg.det(fp['jac'])
+            if det > 0 and trace == 0:
+                print('center has been found. Watch out for limit cycles')
+            elif trace**2 - 4 * det == 0:
+                print("star nodes has been found.")
+            elif trace**2 - 4 * det < 0:
+                print("spiral has been found")
             e_val, e_vecs = np.linalg.eig(fp['jac'])
             ids = np.argwhere(np.real(e_val) > 0)
             countgreaterzero = np.sum(e_val > 0)

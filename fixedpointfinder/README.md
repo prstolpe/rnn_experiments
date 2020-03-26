@@ -1,7 +1,7 @@
 # Fixedpointfinder
----
-[![fpfoptim.gif](https://i.postimg.cc/63W65W9Q/fpfoptim.gif)](https://postimg.cc/1gd1vZVx)
 
+[![fpfoptim.gif](https://i.postimg.cc/63W65W9Q/fpfoptim.gif)](https://postimg.cc/1gd1vZVx)
+---
 The fixedpointfinder may be used to find fixed points in recurrent neural networks.
 Concepts were derived from:
 
