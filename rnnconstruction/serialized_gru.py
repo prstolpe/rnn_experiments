@@ -38,6 +38,7 @@ class SerializedGru:
         reconstructed_diagonals = []
         i = 0
         stretch_or_rotate = []
+        print(np.sum(img_parts>0))
         for k in range((len(weights) - np.sum(img_parts > 0))):
 
             if img_parts[i] > 0:
@@ -48,6 +49,7 @@ class SerializedGru:
                 diagonal_evals[i + 1, i + 1] = real_parts[i + 1]
                 evecs_c[:, i] = np.real(evecs[:, i])
                 evecs_c[:, i + 1] = np.imag(evecs[:, i])
+
                 i += 2
                 stretch_or_rotate.append(False)
             elif img_parts[i] < 0:
@@ -56,11 +58,43 @@ class SerializedGru:
                 stretch_or_rotate.append(True)
                 diagonal_evals = np.zeros((24, 24))
                 diagonal_evals[i, i] = real_parts[i]
+
                 i += 1
 
             reconstructed_diagonals.append(diagonal_evals)
 
         return [reconstructed_diagonals, evecs_c, stretch_or_rotate]
+
+    # serialize input
+    @staticmethod
+    def serialize_inputs(weights, complex_inputs):
+        evals, evecs = np.linalg.eig(weights)
+        real_parts = evals.real
+        img_parts = np.imag(evals)
+        complexgreaterzero = np.sum(img_parts > 0)
+        print(complexgreaterzero)
+        # print(complexgreaterzero)
+        serialized_inputs = []
+        lh = 0
+        for k in range((len(weights) - complexgreaterzero)):
+            if img_parts[lh] > 0:
+                input = np.zeros((len(complex_inputs), 24))
+                input[:, lh] = complex_inputs[:, lh]
+                input[:, lh + 1] = complex_inputs[:, lh + 1]
+
+                lh += 2
+
+            elif img_parts[lh] < 0:
+                pass
+            else:
+                input = np.zeros((len(complex_inputs), 24))
+                input[:, lh] = complex_inputs[:, lh]
+
+                lh += 1
+
+            serialized_inputs.append(input)
+        return serialized_inputs
+
 
 
 

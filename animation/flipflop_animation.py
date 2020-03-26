@@ -3,10 +3,10 @@ import os
 import numpy as np
 import sklearn.decomposition as skld
 import sys
-sys.path.append("/Users/Raphael//rnn_dynamical_systems")
+sys.path.append("/Users/Raphael/dexterous-robot-hand")
 
-from fixedpointfinder.three_bit_flip_flop import Flipflopper
-from rnnconstruction.serialized_gru import SerializedGru
+from rnn_dynamical_systems.fixedpointfinder.three_bit_flip_flop import Flipflopper
+from rnn_dynamical_systems.rnnconstruction.serialized_gru import SerializedGru
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -188,6 +188,13 @@ class SerializedGruAnim(ThreeDScene):
         self.z_input_complex = self.z_input @ (1 / 4 * self.sGru.h_c_inv)
         self.h_input_complex = self.h_input @ (1 / 4 * self.sGru.h_c_inv)
 
+
+        U_z, U_r, U_h, _, _, _ = self.sGru.split_weights(self.weights)
+        self.r_input_serial = self.sGru.serialize_inputs(U_r, self.r_input_complex)
+        self.z_input_serial = self.sGru.serialize_inputs(U_z, self.z_input_complex)
+        self.h_input_serial = self.sGru.serialize_inputs(U_h, self.h_input_complex)
+
+
     def construct(self):
 
         pca = skld.PCA(3)
@@ -229,10 +236,12 @@ class SerializedGruAnim(ThreeDScene):
 
         n_evals = []
         for i in range(3):
-            print(len(self.sGru.serialized[0][i]))
             n_evals.append(len(self.sGru.serialized[0][i]))
 
         print(np.max(n_evals))
+        print(len(self.r_input_serial))
+        print(len(self.z_input_serial))
+        print(len(self.h_input_serial))
         for timestep in range(5):
 
             imaginary_activations = self.complex_activations[timestep, :]
@@ -242,19 +251,11 @@ class SerializedGruAnim(ThreeDScene):
             z_iterator = 0
             h_iterator = 0
             for rotation in range(np.max(n_evals)):
-                r_vector = imaginary_activations @ self.sGru.serialized[0][1][rotation]
-                if rotation == 0:
-                    r_vector = r_vector + self.r_input_complex[timestep, :]
+                r_vector = imaginary_activations @ self.sGru.serialized[0][1][rotation] + self.r_input_serial[rotation][timestep, :]
                 if z_iterator < 14:
-                    z_vector = imaginary_activations @ self.sGru.serialized[0][0][z_iterator]
+                    z_vector = imaginary_activations @ self.sGru.serialized[0][0][z_iterator] + self.z_input_serial[z_iterator][timestep, :]
                     z_iterator += 1
-                if rotation == 0:
-                    z_vector = z_vector + self.z_input_complex[timestep, :]
-
-                if rotation == 0:
-                    h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized[0][0][h_iterator] + self.h_input_complex[timestep, :]
-                else:
-                    h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized[0][0][h_iterator]
+                h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized[0][0][h_iterator] + self.h_input_serial[h_iterator][timestep, :]
                 if h_iterator < 14:
                     h_iterator += 1
 
