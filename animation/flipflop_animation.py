@@ -1,11 +1,10 @@
 from manimlib.imports import *
 import os
-import pyclbr
 import numpy as np
 import sklearn.decomposition as skld
-
 import sys
 sys.path.append("/Users/Raphael//rnn_dynamical_systems")
+
 from fixedpointfinder.three_bit_flip_flop import Flipflopper
 from rnnconstruction.serialized_gru import SerializedGru
 
@@ -154,6 +153,10 @@ class ThreebitflipflopAnim(ThreeDScene):
 class SerializedGruAnim(ThreeDScene):
 
     def setup(self):
+        """Function to be called by manim similar to _init_. Here the data and serialization of the GRU is set up.
+        Activations are converted to complex activations using the inverse of the reordered complex eigenvalue matrix
+        derived from the recurrent weight matrix for the activation named h. Additionally that transformation is scaled
+         by 1/4. """
         rnn_type = 'gru'
         n_hidden = 24
 
@@ -169,11 +172,11 @@ class SerializedGruAnim(ThreeDScene):
         self.output_weights = flopper.model.get_layer('dense').get_weights()
         self.activations = np.vstack(flopper.get_activations(stim))
         self.outputs = np.vstack(stim['output'])
-        # self.activations = self.outputs @ self.output_weights[0].T
+        # self.activations = self.outputs @ self.output_weights[0].T # this will make for idealized activations
 
-        self.sGru = SerializedGru(self.weights, n_hidden)
+        self.sGru = SerializedGru(self.weights, n_hidden) # helper class to serialize gru
 
-        self.complex_activations = self.activations @ (1/4 * self.sGru.h_c_inv)
+        self.complex_activations = self.activations @ (1/4 * self.sGru.h_c_inv) # transform activations to complex system
         # self.complex_activations = np.vstack((np.zeros(n_hidden), self.complex_activations[:-1, :]))
 
         inputs = np.vstack(stim['inputs'])
@@ -230,7 +233,7 @@ class SerializedGruAnim(ThreeDScene):
             n_evals.append(len(self.sGru.serialized[0][i]))
 
         print(np.max(n_evals))
-        for timestep in range(10):
+        for timestep in range(5):
 
             imaginary_activations = self.complex_activations[timestep, :]
             new_timestepscounter = TextMobject("Timestep:" , str(timestep)).to_edge(LEFT)
@@ -264,8 +267,7 @@ class SerializedGruAnim(ThreeDScene):
 
                 imaginary_activations = self.complex_activations[timestep, :] + z_vector * imaginary_activations + \
                                         (1 - z_vector) * h_vector
-                # TODO: should vector grow from origin or tip of activation ? -> probably origin
-                # TODO: show vectors z_vector*activation and 1-z_vector * h_vector to create vector pointing to tip -> not so good
+
                 new_point = pca.transform(imaginary_activations.reshape(1,-1))[0]
                 new_vector = Vector(new_point, color=RED_B)
                 self.play(Transform(z_arrow, new_z_arrow),

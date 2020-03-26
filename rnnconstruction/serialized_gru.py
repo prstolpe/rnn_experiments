@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class SerializedGru:
 
     def __init__(self, recurrent_weights, n_hidden):
@@ -7,6 +8,7 @@ class SerializedGru:
         self.U_z, self.U_r, self.U_h, self.W_z, self.W_r, self.W_h = self.split_weights(recurrent_weights)
         self.serialized = []
 
+        # get all serialized lists into serialized list
         self.serialized.append(self.serialize_recurrent_layer(self.U_z))
         self.serialized.append(self.serialize_recurrent_layer(self.U_r))
         self.serialized.append(self.serialize_recurrent_layer(self.U_h))
@@ -59,5 +61,6 @@ class SerializedGru:
             reconstructed_diagonals.append(diagonal_evals)
 
         return [reconstructed_diagonals, evecs_c, stretch_or_rotate]
+
 
 

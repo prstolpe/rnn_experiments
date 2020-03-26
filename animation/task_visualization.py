@@ -3,18 +3,17 @@ from manimlib.imports import *
 import os
 import sklearn.decomposition as skld
 import sys
-sys.path.append("/Users/Raphael/rnn_dynamical_systems")
+sys.path.append("/Users/Raphael//rnn_dynamical_systems")
 from fixedpointfinder.three_bit_flip_flop import Flipflopper, RetrainableFlipflopper
 from fixedpointfinder.FixedPointFinder import RecordingFixedpointfinder
 
-# os.chdir("./animation/")
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 class AnimateActivitySingleRun(ThreeDScene):
 
     def setup(self):
-        # ZoomedScene.setup(self)
+
         #agent_id = 1583404415  # 1583180664 lunarlandercont
         # agent_id = 1583256614 # reach task
         #chiefinvesti = Chiefinvestigator(agent_id)
@@ -118,6 +117,8 @@ class AnimateFlipFlopLearning(ThreeDScene):
             self.wait(0.5)
             self.remove(line)
 
+   # TODO: add fixed points in animation of learning
+
 
 class AnimateFpfOptimization(ThreeDScene):
 
@@ -153,7 +154,6 @@ class AnimateFpfOptimization(ThreeDScene):
                                         max_iters=7000)
         # sample states, i.e. a number of ICs
         states = fpf.sample_states(activations, 1000, 0.2)
-        # vel = fpf.compute_velocities(np.hstack(activations[1:]), np.zeros((32768, 3)))
         # generate corresponding input as zeros for flip flop task
         # please keep in mind that the input does not need to be zero for all tasks
         inputs = np.zeros((states.shape[0], 3))

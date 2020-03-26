@@ -172,10 +172,10 @@ class Flipflopper(object):
         """Load saved model from JSON file.
         The function will overwrite the current model, if it exists."""
         try:
-            self.model = load_model(os.getcwd()+"/saved/"+self.hps['rnn_type']+"model.h5")
+            self.model = load_model(os.getcwd()+"//saved/"+self.hps['rnn_type']+"model.h5")
             print("Loaded "+self.hps['rnn_type']+" model.")
-        except:
-            self.model = load_model(os.getcwd()+"/fixedpointfinder/saved/"+self.hps['rnn_type']+"model.h5")
+        except OSError:
+            self.model = load_model(os.getcwd()+"//fixedpointfinder/saved/"+self.hps['rnn_type']+"model.h5")
             print("Loaded "+self.hps['rnn_type']+" model.")
 
     def get_activations(self, stim):
