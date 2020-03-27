@@ -1,7 +1,7 @@
 import autograd.numpy as np
 import numdifftools as nd
 
-
+# TODO: could also be turned into class object
 def build_rnn_ds(weights, n_hidden, inputs, method: str = 'joint'):
     weights, inputweights, b = weights[1], weights[0], weights[2]
     projection_b = np.matmul(inputs, inputweights) + b

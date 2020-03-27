@@ -4,9 +4,11 @@ import numpy as np
 import sklearn.decomposition as skld
 import sys
 sys.path.append("/Users/Raphael/dexterous-robot-hand")
+sys.path.append("/Users/Raphael/dexterous-robot-hand/rnn_dynamical_systems")
 
-from rnn_dynamical_systems.fixedpointfinder.three_bit_flip_flop import Flipflopper
+from rnn_dynamical_systems.fixedpointfinder.three_bit_flip_flop import Flipflopper, RetrainableFlipflopper
 from rnn_dynamical_systems.rnnconstruction.serialized_gru import SerializedGru
+from rnn_dynamical_systems.fixedpointfinder.FixedPointFinder import Adamfixedpointfinder
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -276,4 +278,128 @@ class SerializedGruAnim(ThreeDScene):
                           Transform(r_arrow, new_r_arrow),
                           Transform(vector, new_vector),
                           run_time=0.3)
+
+
+class AnimateFlipFlopLearning(ThreeDScene):
+
+    def setup(self):
+
+        rnn_type = 'vanilla'
+        n_hidden = 24
+
+        flopper = RetrainableFlipflopper(rnn_type=rnn_type, n_hidden=n_hidden)
+        stim = flopper.generate_flipflop_trials()
+
+        _ = flopper.initial_train(stim, 10, True)
+        self.iterations = 40
+        self.collected_activations = []
+        for i in range(self.iterations):
+            self.collected_activations.append(np.vstack(flopper.get_activations(stim)))
+            _ = flopper.continued_train(stim, 50, True)
+
+        flopper.load_model()
+        weights = flopper.model.get_layer(flopper.hps['rnn_type']).get_weights()
+        activations = flopper.get_activations(stim)
+        # initialize adam fpf
+        fpf = Adamfixedpointfinder(weights, rnn_type,
+                                   q_threshold=1e-12,
+                                   epsilon=0.01,
+                                   alr_decayr=0.0001,
+                                   max_iters=7000)
+        # sample states, i.e. a number of ICs
+        states = fpf.sample_states(activations, 1000, 0.2)
+        # generate corresponding input as zeros for flip flop task
+        # please keep in mind that the input does not need to be zero for all tasks
+        inputs = np.zeros((states.shape[0], 3))
+        # find fixed points
+        self.fps = fpf.find_fixed_points(states, inputs)
+        self.fixedpoint_locations = self.extract_fixed_point_locations(self.fps)
+        self.fps, self.x_directions = self.classify_fixedpoints(self.fps, 2)
+    @staticmethod
+    def extract_fixed_point_locations(fps):
+        """Processing of minimisation results for pca. The function takes one fixedpoint object at a time and
+        puts all coordinates in single array."""
+        fixed_point_location = [fp['x'] for fp in fps]
+
+        fixed_point_locations = np.vstack(fixed_point_location)
+
+        return fixed_point_locations
+
+    @staticmethod
+    def classify_fixedpoints(fps, scale):
+        """Function to classify fixed points. Methodology is based on
+        'Nonlinear Dynamics and Chaos, Strogatz 2015'.
+
+        Args:
+            fps: Fixedpointobject containing a set of fixedpoints.
+            scale: Float by which the unstable modes shall be scaled for plotting.
+
+        Returns:
+            fps: Fixedpointobject that contains 'fp_stability', i.e. information about
+            the stability of the fixedpoint
+            x_directions: list of matrices containing vectors of unstable modes"""
+
+        x_directions = []
+        scale = scale
+        for fp in fps:
+
+            trace = np.matrix.trace(fp['jac'])
+            det = np.linalg.det(fp['jac'])
+            if det > 0 and trace == 0:
+                print('center has been found. Watch out for limit cycles')
+            elif trace**2 - 4 * det == 0:
+                print("star nodes has been found.")
+            elif trace**2 - 4 * det < 0:
+                print("spiral has been found")
+            e_val, e_vecs = np.linalg.eig(fp['jac'])
+            ids = np.argwhere(np.real(e_val) > 0)
+            countgreaterzero = np.sum(e_val > 0)
+            if countgreaterzero == 0:
+                print('stable fixed point was found.')
+                fp['fp_stability'] = 'stable fixed point'
+            elif countgreaterzero > 0:
+                print('saddle point was found.')
+                fp['fp_stability'] = 'saddle point'
+                for id in ids:
+                    x_plus = fp['x'] + scale * e_val[id] * np.real(e_vecs[:, id].transpose())
+                    x_minus = fp['x'] - scale * e_val[id] * np.real(e_vecs[:, id].transpose())
+                    x_direction = np.vstack((x_plus, fp['x'], x_minus))
+                    x_directions.append(np.real(x_direction))
+
+        return fps, x_directions
+
+    def construct(self):
+
+        pca = skld.PCA(3)
+
+        pca.fit(self.collected_activations[-1])
+        self.set_camera_orientation(phi=60 * DEGREES, theta=-120 * DEGREES)
+
+        transformed_points = pca.transform(self.fixedpoint_locations)
+        # set up fixed points
+        points = []
+        lines = []
+        for i in range(len(transformed_points)):
+            if self.fps[i]['fp_stability'] == 'stable fixed point':
+                points.append(Dot(transformed_points[i, :], color=GREEN, size=0.15))
+            elif self.fps[i]['fp_stability'] == 'saddle point':
+                points.append(Dot(transformed_points[i, :], color=RED_B, size=0.15))
+                for p in range(len(self.x_directions)):
+                    direction_matrix = pca.transform(self.x_directions[p])
+                    lines.append(Line(direction_matrix, color=RED_B, width=0.2))
+
+        dots = VGroup(*points)
+        modes = VGroup(*lines)
+
+        self.play(ShowCreation(dots),
+                  ShowCreation(modes))
+        for it in range(self.iterations):
+            transformed_activations = pca.transform(self.collected_activations[it])
+
+            line = Polygon(*transformed_activations[:500, :],
+                           color=BLUE, width=0.1)
+            self.add(line)
+            self.wait(0.5)
+            self.remove(line)
+
 

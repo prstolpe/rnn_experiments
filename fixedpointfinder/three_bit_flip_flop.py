@@ -7,6 +7,7 @@ import os
 from tensorflow.keras.layers import SimpleRNNCell, SimpleRNN
 from tensorflow.python.keras.utils import tf_utils
 
+
 class Flipflopper(object):
     ''' Class for training an RNN to implement a 3-Bit Flip-Flop task as
     described in Sussillo, D., & Barak, O. (2012). Opening the Black Box:

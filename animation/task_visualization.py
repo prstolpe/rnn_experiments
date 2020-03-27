@@ -4,8 +4,8 @@ import os
 import sklearn.decomposition as skld
 import sys
 sys.path.append("/Users/Raphael//rnn_dynamical_systems")
-from fixedpointfinder.three_bit_flip_flop import Flipflopper, RetrainableFlipflopper
-from fixedpointfinder.FixedPointFinder import RecordingFixedpointfinder
+from rnn_dynamical_systems.fixedpointfinder.three_bit_flip_flop import Flipflopper
+from rnn_dynamical_systems.fixedpointfinder.FixedPointFinder import RecordingFixedpointfinder
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -81,43 +81,8 @@ class AnimateActivitySingleRun(ThreeDScene):
             self.wait(0.3)
             #dot = new_dot
             # first_bit, second_bit, third_bit = new_first_bit, new_second_bit, new_third_bit
-# TODO: add input and predictions to animation
+# TODO: add input and predictions to animation as numbers
 
-
-class AnimateFlipFlopLearning(ThreeDScene):
-
-    def setup(self):
-
-        rnn_type = 'vanilla'
-        n_hidden = 24
-
-        flopper = RetrainableFlipflopper(rnn_type=rnn_type, n_hidden=n_hidden)
-        stim = flopper.generate_flipflop_trials()
-
-        _ = flopper.initial_train(stim, 10, True)
-        self.iterations = 5
-        self.collected_activations = []
-        for i in range(self.iterations):
-            self.collected_activations.append(np.vstack(flopper.get_activations(stim)))
-            _ = flopper.continued_train(stim, 50, True)
-
-    def construct(self):
-
-        pca = skld.PCA(3)
-
-        pca.fit(self.collected_activations[-1])
-        self.set_camera_orientation(phi=60 * DEGREES, theta=-120 * DEGREES)
-
-        for it in range(self.iterations):
-            transformed_activations = pca.transform(self.collected_activations[it])
-
-            line = Polygon(*transformed_activations[:256, :],
-                           color=BLUE, width=0.1)
-            self.add(line)
-            self.wait(0.5)
-            self.remove(line)
-
-   # TODO: add fixed points in animation of learning
 
 
 class AnimateFpfOptimization(ThreeDScene):

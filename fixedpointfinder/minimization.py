@@ -18,6 +18,9 @@ class Minimizer(object):
         self.agnc_decayr = agnc_decayr
         self.verbose = verbose
 
+    """Minimizer is a helper class containing functionality to minimize any abritrary vector valued or 
+    scalar function. However, it is predominantly used by fixedpointfinder classes."""
+
     @staticmethod
     def _print_update(q, lr):
         print("Function value:", q, "; lr:", np.round(lr, 4))
@@ -32,7 +35,9 @@ class Minimizer(object):
 
     def adam_optimization(self, fun, x0):
         """Function to implement the adam optimization algorithm. Also included in this function are
-        functionality for adaptive learning rate as well as adaptive gradient norm clipping."""
+        functionality for adaptive learning rate as well as adaptive gradient norm clipping.
+
+        Goal of this function is to find optimized activity of rnns."""
 
         beta_1, beta_2 = self.beta_1, self.beta_2
         eps = self.eps
@@ -57,10 +62,12 @@ class Minimizer(object):
 
         return x0
 
-
     def adam_weights_optimizer(self, fun, x0, mean_vel):
         """Function to implement the adam optimization algorithm. Also included in this function are
-        functionality for adaptive learning rate as well as adaptive gradient norm clipping."""
+        functionality for adaptive learning rate as well as adaptive gradient norm clipping.
+
+        Goal of this function is to find a set of recurrent kernels that have certain desired
+        fixedpoint properties when put into an rnn."""
 
         beta_1, beta_2 = self.beta_1, self.beta_2
         eps = self.eps
