@@ -117,7 +117,7 @@ def plot_fixed_points(activations, fps, n_points, scale):
         if fps[i]['fp_stability'] == 'stable fixed point':
             ax.scatter(new_pca[i, 0], new_pca[i, 1], new_pca[i, 2],
                        marker='.', s=30, c='k')
-        elif fps[i]['fp_stability'] == 'saddle node':
+        elif fps[i]['fp_stability'] == 'saddle point':
             ax.scatter(new_pca[i, 0], new_pca[i, 1], new_pca[i, 2],
                        marker='.', s=30, c='r')
             for p in range(len(x_directions)):

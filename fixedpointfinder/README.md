@@ -35,3 +35,15 @@ jacobian matrix as linearization around the fixed point and function evaluation 
 
 5. From `plot_utils` `plot_fixed_points` may now be used to visualize the trajectories together with found fixed points 
 analyzed stability and a 3D dimensionality reduced plot. 
+
+## Flip Flop
+
+[![tbfflearning.gif](https://i.postimg.cc/0j8sJNNH/tbfflearning.gif)](https://postimg.cc/ZBDgG4pr)
+---
+
+The example file [fixedpoint_example](fixedpoint_example.py) deals with a three bit flip flop task.
+
+* Sussillo, D., & Barak, O. (2012). Opening the Black Box: Low-Dimensional Dynamics in High-Dimensional Recurrent Neural Networks. Neural Computation, 25(3), 626–649. https://doi.org/10.1162/NECO_a_00409
+
+The class to train the flip flop task using an rnn can be found in [three_bit_flip_flop](three_bit_flip_flop.py)
+

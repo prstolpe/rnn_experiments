@@ -386,18 +386,19 @@ class AnimateFlipFlopLearning(ThreeDScene):
                 points.append(Dot(transformed_points[i, :], color=RED_B, size=0.15))
                 for p in range(len(self.x_directions)):
                     direction_matrix = pca.transform(self.x_directions[p])
-                    lines.append(Line(direction_matrix, color=RED_B, width=0.2))
+                    lines.append(Line(direction_matrix[0, :], direction_matrix[2, :], color=RED_B, width=0.2))
 
         dots = VGroup(*points)
         modes = VGroup(*lines)
 
         self.play(ShowCreation(dots),
                   ShowCreation(modes))
+        self.wait(2)
         for it in range(self.iterations):
             transformed_activations = pca.transform(self.collected_activations[it])
 
-            line = Polygon(*transformed_activations[:500, :],
-                           color=BLUE, width=0.1)
+            line = Polygon(*transformed_activations[:300, :],
+                           color=BLUE, width=0.05, opacity=0.2)
             self.add(line)
             self.wait(0.5)
             self.remove(line)
