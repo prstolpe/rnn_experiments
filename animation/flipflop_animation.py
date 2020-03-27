@@ -184,16 +184,14 @@ class SerializedGruAnim(ThreeDScene):
         self.z_input = inputs @ self.sGru.W_z
         self.h_input = inputs @ self.sGru.W_h
 
-        self.r_input_complex = self.r_input @ (1/4 * self.sGru.h_c_inv)
+        self.r_input_complex = self.r_input @ (1 / 4 * self.sGru.h_c_inv)
         self.z_input_complex = self.z_input @ (1 / 4 * self.sGru.h_c_inv)
         self.h_input_complex = self.h_input @ (1 / 4 * self.sGru.h_c_inv)
-
 
         U_z, U_r, U_h, _, _, _ = self.sGru.split_weights(self.weights)
         self.r_input_serial = self.sGru.serialize_inputs(U_r, self.r_input_complex)
         self.z_input_serial = self.sGru.serialize_inputs(U_z, self.z_input_complex)
         self.h_input_serial = self.sGru.serialize_inputs(U_h, self.h_input_complex)
-
 
     def construct(self):
 
@@ -201,14 +199,14 @@ class SerializedGruAnim(ThreeDScene):
 
         transformed_activations = pca.fit_transform(self.complex_activations)
 
-        shape = Polygon(*transformed_activations[:1000, :], color=BLUE, width=0.1)
+        shape = Polygon(*transformed_activations[:700, :], color=BLUE, width=0.1)
         vector = Vector(transformed_activations[0, :], color=RED_B)
 
         z_vector = (self.complex_activations[0, :] @ self.sGru.serialized[0][0][0])
         z_transformed = pca.transform(z_vector.reshape(1,-1))[0]
         z_arrow = Vector(z_transformed, color=GREEN, width=0.1)
 
-        r_vector = self.complex_activations[0, :] @ self.sGru.serialized[0][1][0]
+        r_vector = self.complex_activations[0, :] @ self.sGru.serialized[1][0][0]
         r_transformed = pca.transform(r_vector.reshape(1, -1))[0]
         r_arrow = Vector(r_transformed, color=YELLOW, width=0.1)
 
@@ -229,34 +227,37 @@ class SerializedGruAnim(ThreeDScene):
         z_text.next_to(r_text, DOWN)
         h_text.next_to(z_text, DOWN)
 
-
         self.play(ShowCreation(r_text),
                   ShowCreation(z_text),
                   ShowCreation(h_text))
 
         n_evals = []
         for i in range(3):
-            n_evals.append(len(self.sGru.serialized[0][i]))
+            print((len(self.sGru.serialized[i][0]), i))
+            n_evals.append(len(self.sGru.serialized[i][0]))
 
-        print(np.max(n_evals))
-        print(len(self.r_input_serial))
-        print(len(self.z_input_serial))
-        print(len(self.h_input_serial))
-        for timestep in range(5):
+        for timestep in range(20):
 
             imaginary_activations = self.complex_activations[timestep, :]
             new_timestepscounter = TextMobject("Timestep:" , str(timestep)).to_edge(LEFT)
-            self.play(Transform(timestepscounter, new_timestepscounter))
+            self.play(Transform(timestepscounter, new_timestepscounter), run_time=0.4)
 
-            z_iterator = 0
+            r_iterator = 0
             h_iterator = 0
             for rotation in range(np.max(n_evals)):
-                r_vector = imaginary_activations @ self.sGru.serialized[0][1][rotation] + self.r_input_serial[rotation][timestep, :]
-                if z_iterator < 14:
-                    z_vector = imaginary_activations @ self.sGru.serialized[0][0][z_iterator] + self.z_input_serial[z_iterator][timestep, :]
-                    z_iterator += 1
-                h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized[0][0][h_iterator] + self.h_input_serial[h_iterator][timestep, :]
-                if h_iterator < 14:
+                z_vector = imaginary_activations @ self.sGru.serialized[0][0][rotation]
+
+                if r_iterator <= n_evals[1]:
+                    r_vector = imaginary_activations @ self.sGru.serialized[1][0][r_iterator]
+                else:
+                    r_vector = 0
+
+                if r_iterator < (n_evals[1]-1):
+                    r_iterator += 1
+
+                h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized[2][0][h_iterator]
+
+                if h_iterator < (n_evals[2]-1):
                     h_iterator += 1
 
                 # transformed_imaginary = pca.transform(imaginary_activations.reshape(1,-1))[0]

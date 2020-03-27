@@ -38,7 +38,6 @@ class SerializedGru:
         reconstructed_diagonals = []
         i = 0
         stretch_or_rotate = []
-        print(np.sum(img_parts>0))
         for k in range((len(weights) - np.sum(img_parts > 0))):
 
             if img_parts[i] > 0:
@@ -54,6 +53,7 @@ class SerializedGru:
                 stretch_or_rotate.append(False)
             elif img_parts[i] < 0:
                 pass
+
             else:
                 stretch_or_rotate.append(True)
                 diagonal_evals = np.zeros((24, 24))
@@ -72,7 +72,6 @@ class SerializedGru:
         real_parts = evals.real
         img_parts = np.imag(evals)
         complexgreaterzero = np.sum(img_parts > 0)
-        print(complexgreaterzero)
         # print(complexgreaterzero)
         serialized_inputs = []
         lh = 0
@@ -93,7 +92,10 @@ class SerializedGru:
                 lh += 1
 
             serialized_inputs.append(input)
+
         return serialized_inputs
+
+
 
 
 
