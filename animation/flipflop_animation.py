@@ -35,12 +35,16 @@ class SerializedVanillaAnim(ThreeDScene):
 
         self.sVanilla = SerializedVanilla(self.weights[1], n_hidden)
 
+        inputs = np.vstack(stim['inputs'])
+        inputs_projections = inputs @ self.weights[0]
+        self.complex_input = inputs_projections @ (1/6 * self.sVanilla.evecs_c_inv)
+
     def construct(self):
 
         pca_activations = skld.PCA(3)
 
-        complex_activations = self.sVanilla.translate_to_complex(self.activations, 1 / 8 * self.sVanilla.evecs_c_inv)
-        complex_activations = complex_activations @ self.sVanilla.all_diagonal
+        complex_activations = self.sVanilla.translate_to_complex(self.activations, 1 / 6 * self.sVanilla.evecs_c_inv)
+        complex_activations = complex_activations @ self.sVanilla.all_diagonal # move forward one timestep for contraction
         activations_transformed = pca_activations.fit_transform(complex_activations)
 
         vector = Vector(activations_transformed[0, :], color=RED_B)
@@ -54,15 +58,17 @@ class SerializedVanillaAnim(ThreeDScene):
                   ShowCreation(activation_shape),
                   ShowCreation(vector))
 
-        for timestep in range(4):
+        for timestep in range(20):
 
             imaginary_activations = complex_activations[timestep, :]
+            imaginary_input = self.complex_input[timestep, :]
             new_timestepscounter = TextMobject("Timestep:" , str(timestep)).to_edge(LEFT)
             self.play(Transform(timestepscounter, new_timestepscounter), run_time=0.4)
 
             for sub_timestep in range(len(self.sVanilla.reconstructed_diagonals)):
-                single_transformation = np.tanh(imaginary_activations @ self.sVanilla.reconstructed_diagonals[sub_timestep])
-                imaginary_activations = complex_activations[timestep, :] + single_transformation
+                single_transformation = imaginary_activations @ self.sVanilla.reconstructed_diagonals[sub_timestep]
+                input_update = imaginary_input @ self.sVanilla.reconstructed_diagonals[sub_timestep]
+                imaginary_activations = complex_activations[timestep, :] + single_transformation + input_update
 
                 end_point = pca_activations.transform(imaginary_activations.reshape(1, -1))[0]
 
