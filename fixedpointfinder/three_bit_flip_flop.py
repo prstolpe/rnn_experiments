@@ -46,7 +46,7 @@ class Flipflopper(object):
         self.data_hps = {'n_batch': 128,
                          'n_time': 256,
                          'n_bits': 3,
-                         'p_flip': 0.5}
+                         'p_flip': 0.6}
         self.verbose = self.hps['verbose']
         # data_hps may be changed but are recommended to remain at their default values
         self.model, self.weights = self._build_model()
@@ -324,7 +324,6 @@ class RetrainableFlipflopper(Flipflopper):
         if save_model:
             self._save_model()
         return history
-
 
 
 class SimplerRNN(SimpleRNN):

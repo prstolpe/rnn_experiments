@@ -10,6 +10,7 @@ class SerializedVanilla:
         self.evecs_c_inv = np.linalg.inv(self.evecs_c)
 
         self.all_diagonal, _ = self.transform_recurrent_layer(recurrent_weights)
+
     @staticmethod
     def translate_to_complex(x, c_inv):
         return x @ c_inv

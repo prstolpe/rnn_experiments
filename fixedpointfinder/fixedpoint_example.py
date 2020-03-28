@@ -22,7 +22,7 @@ stim = flopper.generate_flipflop_trials()
 
 # visualize a single batch after training
 # prediction = flopper.model.predict(tf.convert_to_tensor(stim['inputs'], dtype=tf.float32))
-# visualize_flipflop(stim)
+# visualize_flipflop(prediction, stim)
 
 # if a trained model has been saved, it may also be loaded
 flopper.load_model()

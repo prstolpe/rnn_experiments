@@ -21,9 +21,7 @@ class SerializedVanillaAnim(ThreeDScene):
 
         flopper = Flipflopper(rnn_type=rnn_type, n_hidden=n_hidden)
         stim = flopper.generate_flipflop_trials()
-        # train the model
         # flopper.train(stim, 4000, save_model=True)
-
         # if a trained model has been saved, it may also be loaded
         flopper.load_model()
 
@@ -35,9 +33,7 @@ class SerializedVanillaAnim(ThreeDScene):
 
         self.sVanilla = SerializedVanilla(self.weights[1], n_hidden)
 
-        inputs = np.vstack(stim['inputs'])
-        inputs_projections = inputs @ self.weights[0]
-        self.complex_input = inputs_projections @ (1/6 * self.sVanilla.evecs_c_inv)
+        self.complex_input = (np.vstack(stim['inputs']) @ self.weights[0]) @ (1/6 * self.sVanilla.evecs_c_inv)
 
     def construct(self):
 
