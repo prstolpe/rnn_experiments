@@ -7,7 +7,7 @@ sys.path.append("/Users/Raphael/dexterous-robot-hand")
 sys.path.append("/Users/Raphael/dexterous-robot-hand/rnn_dynamical_systems")
 
 from rnn_dynamical_systems.fixedpointfinder.three_bit_flip_flop import Flipflopper, RetrainableFlipflopper
-from rnn_dynamical_systems.rnnconstruction.serialized_gru import SerializedGru
+from rnn_dynamical_systems.animation.serialized_gru import SerializedGru
 from rnn_dynamical_systems.fixedpointfinder.FixedPointFinder import Adamfixedpointfinder
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
