@@ -2,7 +2,75 @@ import numpy as np
 
 
 class SerializedVanilla:
-    pass
+
+    def __init__(self, recurrent_weights, n_hidden):
+        self.n_hidden = n_hidden
+        self.reconstructed_diagonals, self.evecs_c, self.stretch_or_rotate = self.serialize_recurrent_layer(recurrent_weights)
+
+        self.evecs_c_inv = np.linalg.inv(self.evecs_c)
+
+        self.all_diagonal, _ = self.transform_recurrent_layer(recurrent_weights)
+    @staticmethod
+    def translate_to_complex(x, c_inv):
+        return x @ c_inv
+
+    @staticmethod
+    def translate_to_real(x, c):
+        return x @ c
+
+    @staticmethod
+    def serialize_recurrent_layer(weights):
+
+        evals, evecs = np.linalg.eig(weights)
+        real_parts = evals.real
+        img_parts = evals.imag
+        evecs_c = np.real(evecs)
+        reconstructed_diagonals = []
+        i = 0
+        stretch_or_rotate = []
+        for k in range((len(weights) - np.sum(img_parts > 0))):
+
+            if img_parts[i] > 0:
+                diagonal_evals = np.zeros((24, 24))
+                diagonal_evals[i, i + 1] = img_parts[i]
+                diagonal_evals[i + 1, i] = img_parts[i + 1]
+                diagonal_evals[i, i] = real_parts[i]
+                diagonal_evals[i + 1, i + 1] = real_parts[i + 1]
+                evecs_c[:, i] = np.real(evecs[:, i])
+                evecs_c[:, i + 1] = np.imag(evecs[:, i])
+                i += 2
+                stretch_or_rotate.append(False)
+            elif img_parts[i] < 0:
+                pass
+            else:
+                stretch_or_rotate.append(True)
+                diagonal_evals = np.zeros((24, 24))
+                diagonal_evals[i, i] = real_parts[i]
+                i += 1
+
+            reconstructed_diagonals.append(diagonal_evals)
+
+        return reconstructed_diagonals, evecs_c, stretch_or_rotate
+
+    @staticmethod
+    def transform_recurrent_layer(weights):
+
+        evals, evecs = np.linalg.eig(weights)
+        diagonal_evals = np.real(np.diag(evals))
+        # real_parts = evals.real
+        img_parts = evals.imag
+        evecs_c = np.real(evecs)
+
+        for i in range(len(weights)):
+            if img_parts[i] > 0:
+                diagonal_evals[i, i + 1] = img_parts[i]
+                diagonal_evals[i + 1, i] = img_parts[i + 1]
+
+                evecs_c[:, i] = np.real(evecs[:, i])
+                evecs_c[:, i + 1] = np.imag(evecs[:, i])
+
+        return diagonal_evals, evecs_c
+
 
 
 class SerializedGru:

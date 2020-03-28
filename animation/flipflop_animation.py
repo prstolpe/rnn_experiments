@@ -7,13 +7,13 @@ sys.path.append("/Users/Raphael/dexterous-robot-hand")
 sys.path.append("/Users/Raphael/dexterous-robot-hand/rnn_dynamical_systems")
 
 from rnn_dynamical_systems.fixedpointfinder.three_bit_flip_flop import Flipflopper, RetrainableFlipflopper
-from rnn_dynamical_systems.animation.serialize_rnn import SerializedGru
+from rnn_dynamical_systems.animation.serialize_rnn import SerializedGru, SerializedVanilla
 from rnn_dynamical_systems.fixedpointfinder.FixedPointFinder import Adamfixedpointfinder
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
-class ThreebitflipflopAnim(ThreeDScene):
+class SerializedVanillaAnim(ThreeDScene):
 
     def setup(self):
         rnn_type = 'vanilla'
@@ -33,117 +33,43 @@ class ThreebitflipflopAnim(ThreeDScene):
         self.outputs = np.vstack(stim['output'])
         self.activations = self.outputs @ self.output_weights[0].T
 
-    @staticmethod
-    def translate_to_complex(x, c_inv):
-        return x @ c_inv
-
-    @staticmethod
-    def translate_to_real(x, c):
-        return x @ c
-
-    def serialize_recurrent_layer(self):
-        evals, evecs = np.linalg.eig(self.weights[1])
-        real_parts = evals.real
-        img_parts = evals.imag
-        evecs_c = np.real(evecs)
-        reconstructed_matrices = []
-        i = 0
-        stretch_or_rotate = []
-        for k in range((len(self.weights[1]) - np.sum(img_parts > 0))):
-
-            if img_parts[i] > 0:
-                diagonal_evals = np.zeros((24, 24))
-                diagonal_evals[i, i + 1] = img_parts[i]
-                diagonal_evals[i + 1, i] = img_parts[i + 1]
-                diagonal_evals[i, i] = real_parts[i]
-                diagonal_evals[i + 1, i + 1] = real_parts[i + 1]
-                evecs_c[:, i] = np.real(evecs[:, i])
-                evecs_c[:, i + 1] = np.imag(evecs[:, i])
-                i += 2
-                stretch_or_rotate.append(False)
-            elif img_parts[i] < 0:
-                pass
-            else:
-                stretch_or_rotate.append(True)
-                diagonal_evals = np.zeros((24, 24))
-                diagonal_evals[i, i] = real_parts[i]
-                i += 1
-
-            reconstructed_matrices.append(diagonal_evals)
-
-        return reconstructed_matrices, evecs_c, stretch_or_rotate
-
-    def transform_recurrent_layer(self):
-
-        evals, evecs = np.linalg.eig(self.weights[1])
-        diagonal_evals = np.real(np.diag(evals))
-        # real_parts = evals.real
-        img_parts = evals.imag
-        evecs_c = np.real(evecs)
-
-        for i in range(len(self.weights[1])):
-            if img_parts[i] > 0:
-                diagonal_evals[i, i+1] = img_parts[i]
-                diagonal_evals[i+1, i] = img_parts[i+1]
-
-                evecs_c[:, i] = np.real(evecs[:, i])
-                evecs_c[:, i+1] = np.imag(evecs[:, i])
-
-        return diagonal_evals, evecs_c
+        self.sVanilla = SerializedVanilla(self.weights[1], n_hidden)
 
     def construct(self):
 
-        diagonal_evals, c, stretch = self.serialize_recurrent_layer()
-        c_inv = np.linalg.inv(c)
-        all_diagonal_evals, _ = self.transform_recurrent_layer()
-
         pca_activations = skld.PCA(3)
 
-        complex_activations = self.translate_to_complex(self.activations, 1 / 5 * c_inv)
-        complex_activations = complex_activations @ all_diagonal_evals
-        print(complex_activations.shape)
-        # self.activations = np.vstack(self.activations)
+        complex_activations = self.sVanilla.translate_to_complex(self.activations, 1 / 8 * self.sVanilla.evecs_c_inv)
+        complex_activations = complex_activations @ self.sVanilla.all_diagonal
         activations_transformed = pca_activations.fit_transform(complex_activations)
 
-        vector = Vector(activations_transformed[0, :])
-        vector.set_color(RED_B)
-        old_point = activations_transformed[0, :]
+        vector = Vector(activations_transformed[0, :], color=RED_B)
+        activation_shape = Polygon(*activations_transformed[:500, :], color=BLUE, width=0.1)
 
-        for t in range(200):
-            activation_shape = Line(activations_transformed[t, :], activations_transformed[t + 1, :])
-            activation_shape.set_color(BLUE)
-            self.add(activation_shape)
-        # self.set_camera_orientation(phi=PI / 3, gamma=PI / 5)
+        timestep = 0
+        timestepscounter = TextMobject("Timestep:" , str(timestep))
 
-        for timestep in range(10):
+        self.play(ShowCreation(TextMobject("Vanilla vector computation").to_edge(UP)),
+                  ShowCreation(timestepscounter.to_edge(LEFT)),
+                  ShowCreation(activation_shape),
+                  ShowCreation(vector))
 
-            fp_vector = vector
-            self.add(fp_vector)
+        for timestep in range(4):
+
             imaginary_activations = complex_activations[timestep, :]
+            new_timestepscounter = TextMobject("Timestep:" , str(timestep)).to_edge(LEFT)
+            self.play(Transform(timestepscounter, new_timestepscounter), run_time=0.4)
 
-            for rotation in range(len(diagonal_evals)):
-                single_transformation = imaginary_activations @ diagonal_evals[rotation]
+            for sub_timestep in range(len(self.sVanilla.reconstructed_diagonals)):
+                single_transformation = np.tanh(imaginary_activations @ self.sVanilla.reconstructed_diagonals[sub_timestep])
                 imaginary_activations = complex_activations[timestep, :] + single_transformation
 
-                end_point = pca_activations.transform(imaginary_activations.reshape(1, -1))
-                end_point = end_point[0]
+                end_point = pca_activations.transform(imaginary_activations.reshape(1, -1))[0]
 
-                if stretch[rotation]:
-                    new_vector = Vector(end_point, color=RED_B)
+                new_vector = Vector(end_point, color=RED_B)
 
-                    self.play(Transform(vector, new_vector), run_time=0.5)
-                    self.remove(vector)
-                    old_point = end_point
-                    vector = new_vector
-                else:
-                    new_vector = Vector(end_point, color=RED_B)
-                    angle = angle_between_vectors(old_point, end_point)
+                self.play(Transform(vector, new_vector), run_time=0.3)
 
-                    self.play(Rotate(vector, angle, ORIGIN), run_time=0.5)
-                    self.remove(vector)
-
-                    old_point = end_point
-                    vector = new_vector
 
 
 class SerializedGruAnim(ThreeDScene):
@@ -178,6 +104,19 @@ class SerializedGruAnim(ThreeDScene):
         inputs = np.vstack(stim['inputs'])
         self.sGru.handle_inputs(inputs)
 
+    def display_gate_text(self):
+        # TextMobjects
+        r_text = TextMobject("reset gate", color=YELLOW)
+        z_text = TextMobject("update gate", color=GREEN)
+        h_text = TextMobject("activation", color=RED_B)
+        r_text.move_to(np.array([5, 0.75, 0]))
+        z_text.next_to(r_text, DOWN)
+        h_text.next_to(z_text, DOWN)
+
+        self.play(ShowCreation(r_text),
+                  ShowCreation(z_text),
+                  ShowCreation(h_text))
+
     def construct(self):
 
         pca = skld.PCA(3)
@@ -204,21 +143,9 @@ class SerializedGruAnim(ThreeDScene):
                   ShowCreation(vector),
                   ShowCreation(z_arrow),
                   ShowCreation(r_arrow))
+        self.display_gate_text()
 
-        # TextMobjects
-        r_text = TextMobject("reset gate", color=YELLOW)
-        z_text = TextMobject("update gate", color=GREEN)
-        h_text = TextMobject("activation", color=RED_B)
-        r_text.move_to(np.array([5, 0.75, 0]))
-        z_text.next_to(r_text, DOWN)
-        h_text.next_to(z_text, DOWN)
-
-        self.play(ShowCreation(r_text),
-                  ShowCreation(z_text),
-                  ShowCreation(h_text))
-
-
-        for timestep in range(20):
+        for timestep in range(4):
 
             imaginary_activations = self.complex_activations[timestep, :]
             new_timestepscounter = TextMobject("Timestep:" , str(timestep)).to_edge(LEFT)
@@ -226,11 +153,11 @@ class SerializedGruAnim(ThreeDScene):
 
             r_iterator = 0
             h_iterator = 0
-            for rotation in range(self.sGru.max_evals):
-                z_vector = imaginary_activations @ self.sGru.serialized["z_update"][0][rotation]
+            for sub_timestep in range(self.sGru.max_evals):
+                z_vector = imaginary_activations @ self.sGru.serialized["z_update"][0][sub_timestep]
 
                 if r_iterator <= self.sGru.n_evals[1]:
-                    r_vector = imaginary_activations @ self.sGru.serialized["r_update"][0][r_iterator]
+                    r_vector = imaginary_activations @ self.sGru.serialized["r_reset"][0][r_iterator]
                 else:
                     r_vector = 0
 
@@ -242,7 +169,6 @@ class SerializedGruAnim(ThreeDScene):
                 if h_iterator < (self.sGru.n_evals[2]-1):
                     h_iterator += 1
 
-                # transformed_imaginary = pca.transform(imaginary_activations.reshape(1,-1))[0]
                 z_transformed = pca.transform(z_vector.reshape(1, -1))[0]
                 r_transformed = pca.transform(r_vector.reshape(1, -1))[0]
 
@@ -252,8 +178,9 @@ class SerializedGruAnim(ThreeDScene):
                 imaginary_activations = self.complex_activations[timestep, :] + z_vector * imaginary_activations + \
                                         (1 - z_vector) * h_vector
 
-                new_point = pca.transform(imaginary_activations.reshape(1,-1))[0]
+                new_point = pca.transform(imaginary_activations.reshape(1, -1))[0]
                 new_vector = Vector(new_point, color=RED_B)
+
                 self.play(Transform(z_arrow, new_z_arrow),
                           Transform(r_arrow, new_r_arrow),
                           Transform(vector, new_vector),
