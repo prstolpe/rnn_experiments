@@ -1,9 +1,8 @@
 
-from fixedpointfinder.build_utils import build_rnn_ds, build_gru_ds
+from rnn_dynamical_systems.fixedpointfinder.build_utils import build_rnn_ds, build_gru_ds
 import autograd.numpy as np
-from fixedpointfinder.minimization import Minimizer
-import tensorflow as tf
-from rnnconstruction.build_utils import build_rnn_inducer, build_gru_inducer
+from rnn_dynamical_systems.fixedpointfinder.minimization import Minimizer
+from rnn_dynamical_systems.rnnconstruction.build_utils import build_rnn_inducer, build_gru_inducer
 
 
 class Rnnconstructor:
@@ -84,4 +83,5 @@ class Rnnconstructor:
 
         return fph
 
+# TODO: add functionality to analyse induced networks with respect to eigenvalues
 

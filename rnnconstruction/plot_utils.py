@@ -1,5 +1,7 @@
 import pickle
 import matplotlib.pyplot as plt
+
+
 def plot_history(retrained_history):
     """Plot the history of a set of trained RNNs"""
     plt.plot(range(len(retrained_history.history.epoch)), retrained_history.history['loss'])

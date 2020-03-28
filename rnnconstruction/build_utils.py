@@ -1,4 +1,5 @@
 import autograd.numpy as np
+
 def build_rnn_inducer(target):
 
     def fun(x):

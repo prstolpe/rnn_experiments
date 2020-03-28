@@ -79,10 +79,7 @@ class AnimateActivitySingleRun(ThreeDScene):
                       Transform(third_bit, new_third_bit),
                       run_time=0.2)
             self.wait(0.3)
-            #dot = new_dot
-            # first_bit, second_bit, third_bit = new_first_bit, new_second_bit, new_third_bit
 # TODO: add input and predictions to animation as numbers
-
 
 
 class AnimateFpfOptimization(ThreeDScene):

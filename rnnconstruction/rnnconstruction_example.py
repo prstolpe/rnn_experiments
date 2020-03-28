@@ -1,4 +1,4 @@
-from fixedpointfinder.three_bit_flip_flop import Flipflopper
+from rnn_dynamical_systems.fixedpointfinder.three_bit_flip_flop import PretrainableFlipflopper
 import numpy as np
 from fixedpointfinder.FixedPointFinder import Adamfixedpointfinder
 from rnnconstruction.rnnconcstruct import Rnnconstructor
@@ -12,7 +12,7 @@ from fixedpointfinder.plot_utils import plot_fixed_points
 rnn_type = 'gru'
 n_hidden = 24
 # initialize Flipflopper class
-flopper = Flipflopper(rnn_type=rnn_type, n_hidden=n_hidden)
+flopper = PretrainableFlipflopper(rnn_type=rnn_type, n_hidden=n_hidden)
 # generate trials
 stim = flopper.generate_flipflop_trials()
 # train the model
