@@ -1,21 +1,28 @@
 import numpy as np
 
 
+class SerializedVanilla:
+    pass
+
+
 class SerializedGru:
 
     def __init__(self, recurrent_weights, n_hidden):
         self.n_hidden = n_hidden
         self.U_z, self.U_r, self.U_h, self.W_z, self.W_r, self.W_h = self.split_weights(recurrent_weights)
-        self.serialized = []
+        self.serialized = {"z_update": self.serialize_recurrent_layer(self.U_z),
+                           "r_reset": self.serialize_recurrent_layer(self.U_r),
+                           "h_activation": self.serialize_recurrent_layer(self.U_h)}
+        self.n_evals = []
+        for key in self.serialized:
+            self.n_evals.append(len(self.serialized[key][0]))
+        self.max_evals = np.max(self.n_evals)
 
-        # get all serialized lists into serialized list
-        self.serialized.append(self.serialize_recurrent_layer(self.U_z))
-        self.serialized.append(self.serialize_recurrent_layer(self.U_r))
-        self.serialized.append(self.serialize_recurrent_layer(self.U_h))
+        self.z_c_inv = np.linalg.inv(self.serialized["z_update"][1])
+        self.r_c_inv = np.linalg.inv(self.serialized["r_reset"][1])
+        self.h_c_inv = np.linalg.inv(self.serialized["h_activation"][1])
 
-        self.z_c_inv = np.linalg.inv(self.serialized[0][1])
-        self.r_c_inv = np.linalg.inv(self.serialized[1][1])
-        self.h_c_inv = np.linalg.inv(self.serialized[2][1])
+
 
     def split_weights(self, weights):
         z, r, h = np.arange(0, self.n_hidden), np.arange(self.n_hidden, 2 * self.n_hidden), \
@@ -28,6 +35,19 @@ class SerializedGru:
 
     def translate_to_complex(self):
         pass
+
+    def handle_inputs(self, inputs):
+        r_input = inputs @ self.W_r
+        z_input = inputs @ self.W_z
+        h_input = inputs @ self.W_h
+
+        r_input_complex = r_input @ (1 / 4 * self.h_c_inv)
+        z_input_complex = z_input @ (1 / 4 * self.h_c_inv)
+        h_input_complex = h_input @ (1 / 4 * self.h_c_inv)
+
+        self.r_input_serial = self.serialize_inputs(self.U_r, r_input_complex)
+        self.z_input_serial = self.serialize_inputs(self.U_z, z_input_complex)
+        self.h_input_serial = self.serialize_inputs(self.U_h, h_input_complex)
 
     @staticmethod
     def serialize_recurrent_layer(weights):
@@ -62,7 +82,7 @@ class SerializedGru:
                 i += 1
 
             reconstructed_diagonals.append(diagonal_evals)
-
+        # return list with list of diagonals, evecs_complex matrix, boolean list whether eval said stretch or rotation
         return [reconstructed_diagonals, evecs_c, stretch_or_rotate]
 
     # serialize input

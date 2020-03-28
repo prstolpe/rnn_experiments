@@ -7,19 +7,13 @@ sys.path.append("/Users/Raphael/dexterous-robot-hand")
 sys.path.append("/Users/Raphael/dexterous-robot-hand/rnn_dynamical_systems")
 
 from rnn_dynamical_systems.fixedpointfinder.three_bit_flip_flop import Flipflopper, RetrainableFlipflopper
-from rnn_dynamical_systems.animation.serialized_gru import SerializedGru
+from rnn_dynamical_systems.animation.serialize_rnn import SerializedGru
 from rnn_dynamical_systems.fixedpointfinder.FixedPointFinder import Adamfixedpointfinder
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 class ThreebitflipflopAnim(ThreeDScene):
-    CONFIG = {
-    "plane_kwargs" : {
-        "color" : RED_B
-        },
-    "point_charge_loc" : 0.5*RIGHT-1.5*UP,
-    }
 
     def setup(self):
         rnn_type = 'vanilla'
@@ -182,18 +176,7 @@ class SerializedGruAnim(ThreeDScene):
         # self.complex_activations = np.vstack((np.zeros(n_hidden), self.complex_activations[:-1, :]))
 
         inputs = np.vstack(stim['inputs'])
-        self.r_input = inputs @ self.sGru.W_r
-        self.z_input = inputs @ self.sGru.W_z
-        self.h_input = inputs @ self.sGru.W_h
-
-        self.r_input_complex = self.r_input @ (1 / 4 * self.sGru.h_c_inv)
-        self.z_input_complex = self.z_input @ (1 / 4 * self.sGru.h_c_inv)
-        self.h_input_complex = self.h_input @ (1 / 4 * self.sGru.h_c_inv)
-
-        U_z, U_r, U_h, _, _, _ = self.sGru.split_weights(self.weights)
-        self.r_input_serial = self.sGru.serialize_inputs(U_r, self.r_input_complex)
-        self.z_input_serial = self.sGru.serialize_inputs(U_z, self.z_input_complex)
-        self.h_input_serial = self.sGru.serialize_inputs(U_h, self.h_input_complex)
+        self.sGru.handle_inputs(inputs)
 
     def construct(self):
 
@@ -204,16 +187,17 @@ class SerializedGruAnim(ThreeDScene):
         shape = Polygon(*transformed_activations[:700, :], color=BLUE, width=0.1)
         vector = Vector(transformed_activations[0, :], color=RED_B)
 
-        z_vector = (self.complex_activations[0, :] @ self.sGru.serialized[0][0][0])
-        z_transformed = pca.transform(z_vector.reshape(1,-1))[0]
+        z_vector = (self.complex_activations[0, :] @ self.sGru.serialized["z_update"][0][0])
+        z_transformed = pca.transform(z_vector.reshape(1, -1))[0]
         z_arrow = Vector(z_transformed, color=GREEN, width=0.1)
 
-        r_vector = self.complex_activations[0, :] @ self.sGru.serialized[1][0][0]
+        r_vector = self.complex_activations[0, :] @ self.sGru.serialized["r_reset"][0][0]
         r_transformed = pca.transform(r_vector.reshape(1, -1))[0]
         r_arrow = Vector(r_transformed, color=YELLOW, width=0.1)
 
         timestep = 0
         timestepscounter = TextMobject("Timestep:" , str(timestep))
+
         self.play(ShowCreation(TextMobject("GRU vector computation").to_edge(UP)),
                   ShowCreation(timestepscounter.to_edge(LEFT)))
         self.play(ShowCreation(shape),
@@ -233,10 +217,6 @@ class SerializedGruAnim(ThreeDScene):
                   ShowCreation(z_text),
                   ShowCreation(h_text))
 
-        n_evals = []
-        for i in range(3):
-            print((len(self.sGru.serialized[i][0]), i))
-            n_evals.append(len(self.sGru.serialized[i][0]))
 
         for timestep in range(20):
 
@@ -246,20 +226,20 @@ class SerializedGruAnim(ThreeDScene):
 
             r_iterator = 0
             h_iterator = 0
-            for rotation in range(np.max(n_evals)):
-                z_vector = imaginary_activations @ self.sGru.serialized[0][0][rotation]
+            for rotation in range(self.sGru.max_evals):
+                z_vector = imaginary_activations @ self.sGru.serialized["z_update"][0][rotation]
 
-                if r_iterator <= n_evals[1]:
-                    r_vector = imaginary_activations @ self.sGru.serialized[1][0][r_iterator]
+                if r_iterator <= self.sGru.n_evals[1]:
+                    r_vector = imaginary_activations @ self.sGru.serialized["r_update"][0][r_iterator]
                 else:
                     r_vector = 0
 
-                if r_iterator < (n_evals[1]-1):
+                if r_iterator < (self.sGru.n_evals[1]-1):
                     r_iterator += 1
 
-                h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized[2][0][h_iterator]
+                h_vector = (r_vector * imaginary_activations) @ self.sGru.serialized["h_activation"][0][h_iterator]
 
-                if h_iterator < (n_evals[2]-1):
+                if h_iterator < (self.sGru.n_evals[2]-1):
                     h_iterator += 1
 
                 # transformed_imaginary = pca.transform(imaginary_activations.reshape(1,-1))[0]
