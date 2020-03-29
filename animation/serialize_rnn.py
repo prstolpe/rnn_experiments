@@ -5,7 +5,7 @@ class SerializedVanilla:
 
     def __init__(self, recurrent_weights, n_hidden):
         self.n_hidden = n_hidden
-        self.reconstructed_diagonals, self.evecs_c, self.stretch_or_rotate = self.serialize_recurrent_layer(recurrent_weights)
+        self.reconstructed_diagonals, self.evecs_c, self.stretch_or_rotate = self.serialize_recurrent_layer(recurrent_weights, n_hidden)
 
         self.evecs_c_inv = np.linalg.inv(self.evecs_c)
 
@@ -20,7 +20,7 @@ class SerializedVanilla:
         return x @ c
 
     @staticmethod
-    def serialize_recurrent_layer(weights):
+    def serialize_recurrent_layer(weights, n_hidden):
 
         evals, evecs = np.linalg.eig(weights)
         real_parts = evals.real
@@ -32,7 +32,7 @@ class SerializedVanilla:
         for k in range((len(weights) - np.sum(img_parts > 0))):
 
             if img_parts[i] > 0:
-                diagonal_evals = np.zeros((24, 24))
+                diagonal_evals = np.zeros((n_hidden, n_hidden))
                 diagonal_evals[i, i + 1] = img_parts[i]
                 diagonal_evals[i + 1, i] = img_parts[i + 1]
                 diagonal_evals[i, i] = real_parts[i]
@@ -45,7 +45,7 @@ class SerializedVanilla:
                 pass
             else:
                 stretch_or_rotate.append(True)
-                diagonal_evals = np.zeros((24, 24))
+                diagonal_evals = np.zeros((n_hidden, n_hidden))
                 diagonal_evals[i, i] = real_parts[i]
                 i += 1
 

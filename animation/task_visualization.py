@@ -8,7 +8,7 @@ sys.path.append("/Users/Raphael/dexterous-robot-hand")
 from rnn_dynamical_systems.fixedpointfinder.three_bit_flip_flop import Flipflopper
 from rnn_dynamical_systems.fixedpointfinder.FixedPointFinder import RecordingFixedpointfinder
 from analysis.chiefinvestigation import Chiefinvestigator
-from rnn_dynamical_systems.animation.serialize_rnn import SerializedGru
+from rnn_dynamical_systems.animation.serialize_rnn import SerializedGru, SerializedVanilla
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
@@ -306,3 +306,61 @@ class AnimateActivitySingleRunGru(ThreeDScene):
                           Transform(r_arrow, new_r_arrow),
                           Transform(vector, new_vector),
                           run_time=0.3)
+
+class AnimateAcivitySingleRunVanilla(ThreeDScene):
+
+    def setup(self):
+        agent_id = 1585500821  # cartpole-v1
+        os.chdir("../")
+        #agent_id = 1583404415  # 1583180664 lunarlandercont
+        # agent_id = 1583256614 # reach task
+        chiefinvesti = Chiefinvestigator(agent_id)
+        os.chdir("./rnn_dynamical_systems")
+        layer_names = chiefinvesti.get_layer_names()
+        print(layer_names)
+
+        self.activations_over_episode, self.inputs_over_episode, \
+        self.actions_over_episode = chiefinvesti.get_data_over_single_run("policy_recurrent_layer",
+                                                                          layer_names[1])
+        self.activations_over_episode = np.vstack((np.zeros(chiefinvesti.n_hidden), self.activations_over_episode[:-1, :]))
+        self.weights = chiefinvesti.weights
+        self.sVanilla = SerializedVanilla(self.weights[1], chiefinvesti.n_hidden)
+
+        self.complex_input = self.inputs_over_episode @ self.weights[0] @ (1 / 6 * self.sVanilla.evecs_c_inv)
+
+    def construct(self):
+
+        pca_activations = skld.PCA(3)
+
+        complex_activations = self.sVanilla.translate_to_complex(self.activations_over_episode, 1 / 6 * self.sVanilla.evecs_c_inv)
+        complex_activations = complex_activations @ self.sVanilla.all_diagonal  # move forward one timestep for contraction
+        activations_transformed = pca_activations.fit_transform(complex_activations)
+
+        vector = Vector(activations_transformed[0, :], color=RED_B)
+        activation_shape = Polygon(*activations_transformed[:500, :], color=BLUE, width=0.1)
+
+        timestep = 0
+        timestepscounter = TextMobject("Timestep:", str(timestep))
+
+        self.play(ShowCreation(TextMobject("Vanilla vector computation").to_edge(UP)),
+                  ShowCreation(timestepscounter.to_edge(LEFT)),
+                  ShowCreation(activation_shape),
+                  ShowCreation(vector))
+
+        for timestep in range(10):
+
+            imaginary_activations = complex_activations[timestep, :]
+            imaginary_input = self.complex_input[timestep, :]
+            new_timestepscounter = TextMobject("Timestep:", str(timestep)).to_edge(LEFT)
+            self.play(Transform(timestepscounter, new_timestepscounter), run_time=0.4)
+
+            for sub_timestep in range(len(self.sVanilla.reconstructed_diagonals)):
+                single_transformation = imaginary_activations @ self.sVanilla.reconstructed_diagonals[sub_timestep]
+                input_update = imaginary_input @ self.sVanilla.reconstructed_diagonals[sub_timestep]
+                imaginary_activations = complex_activations[timestep, :] + single_transformation + input_update
+
+                end_point = pca_activations.transform(imaginary_activations.reshape(1, -1))[0]
+
+                new_vector = Vector(end_point, color=RED_B)
+
+                self.play(Transform(vector, new_vector), run_time=0.1)
