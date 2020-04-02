@@ -39,7 +39,7 @@ def build_gru_ds(weights, n_hidden, input, method: str = 'joint'):
 
     z_fun = lambda x: sigmoid(np.matmul(x, U_z) + z_projection_b)
     r_fun = lambda x: sigmoid(np.matmul(x, U_r) + r_projection_b)
-    g_fun = lambda x: np.tanh((r_fun(x) * np.matmul(x, U_h) + g_projection_b))
+    g_fun = lambda x: np.tanh(((r_fun(x) * x) @ U_h + g_projection_b))
 
     if method == 'joint':
         def fun(x):
