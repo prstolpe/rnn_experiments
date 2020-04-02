@@ -54,7 +54,10 @@ class SerializedVanillaAnim(ThreeDScene):
                   ShowCreation(activation_shape),
                   ShowCreation(vector))
 
-        for timestep in range(20):
+        for i in range(24):
+            self.add(Vector(pca_activations.transform(4*self.sVanilla.evecs_c[:, i].reshape(1, -1))[0], color=YELLOW))
+
+        for timestep in range(10):
 
             imaginary_activations = complex_activations[timestep, :]
             imaginary_input = self.complex_input[timestep, :]

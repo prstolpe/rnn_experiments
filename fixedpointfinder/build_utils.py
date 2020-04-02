@@ -8,7 +8,7 @@ def build_rnn_ds(weights, n_hidden, inputs, method: str = 'joint'):
 
     if method == 'joint':
         def fun(x):
-            return np.mean(0.5 * np.sum(((- x + np.matmul(np.tanh(x), weights) + projection_b) ** 2), axis=1))
+            return np.mean(0.5 * np.sum(((- x + np.matmul(np.tanh(x), weights) + inputs @ inputweights + b) ** 2), axis=1))
     elif method == 'sequential':
         def fun(x):
             return 0.5 * np.sum((- x + np.matmul(np.tanh(x), weights) + projection_b) ** 2)
