@@ -129,7 +129,8 @@ def plot_fixed_points(activations, fps, n_points, scale):
     ax.set_xlabel('PC1')
     ax.set_ylabel('PC2')
     ax.set_zlabel('PC3')
-    plt.show()
+    # plt.show()
+    return fig, ax
 
 
 def visualize_flipflop(prediction, stim):
@@ -146,5 +147,4 @@ def visualize_flipflop(prediction, stim):
     plt.xlabel('Time')
     ax1.xaxis.set_visible(False)
     ax2.xaxis.set_visible(False)
-
     plt.show()

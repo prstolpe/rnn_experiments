@@ -4,17 +4,16 @@ import numdifftools as nd
 # TODO: could also be turned into class object
 def build_rnn_ds(weights, n_hidden, inputs, method: str = 'joint'):
     weights, inputweights, b = weights[1], weights[0], weights[2]
-    projection_b = np.matmul(inputs, inputweights) + b
 
     if method == 'joint':
         def fun(x):
-            return np.mean(0.5 * np.sum(((- x + np.matmul(np.tanh(x), weights) + inputs @ inputweights + b) ** 2), axis=1))
+            return np.mean(1/n_hidden * np.sum(((- x + np.tanh(x @ weights + inputs @ inputweights + b)) ** 2), axis=1))
     elif method == 'sequential':
         def fun(x):
-            return 0.5 * np.sum((- x + np.matmul(np.tanh(x), weights) + projection_b) ** 2)
+            return 1/n_hidden * np.sum((- x + np.tanh(x @ weights + inputs @ inputweights + b)) ** 2)
     elif method == 'velocity':
         def fun(x):
-            return 0.5 * np.sum(((- x + np.matmul(np.tanh(x), weights) + projection_b) ** 2), axis=1)
+            return 0.5 * np.sum(((- x + np.tanh(x @ weights + inputs @ inputweights + b)) ** 2), axis=1)
     else:
         raise ValueError('Method argument to build function must be one of '
                          '[joint, sequential, velocity] but was', method)
@@ -25,6 +24,7 @@ def build_rnn_ds(weights, n_hidden, inputs, method: str = 'joint'):
 
 
 def build_gru_ds(weights, n_hidden, input, method: str = 'joint'):
+
     def sigmoid(x):
         return 1 / (1 + np.exp(-x))
 
@@ -33,27 +33,27 @@ def build_gru_ds(weights, n_hidden, input, method: str = 'joint'):
     U_z, U_r, U_h = weights[1][:, z], weights[1][:, r], weights[1][:, h]
     b_z, b_r, b_h = weights[2][0, z], weights[2][0, r], weights[2][0, h]
 
-    z_projection_b = np.matmul(input, W_z) + b_z
-    r_projection_b = np.matmul(input, W_r) + b_r
-    g_projection_b = np.matmul(input, W_h) + b_h
+    z_projection_b = input @ W_z + b_z
+    r_projection_b = input @ W_r + b_r
+    g_projection_b = input @ W_h + b_h
 
-    z_fun = lambda x: sigmoid(np.matmul(x, U_z) + z_projection_b)
-    r_fun = lambda x: sigmoid(np.matmul(x, U_r) + r_projection_b)
-    g_fun = lambda x: np.tanh(((r_fun(x) * x) @ U_h + g_projection_b))
+    z_fun = lambda x: sigmoid(x @ U_z + z_projection_b)
+    r_fun = lambda x: sigmoid(x @ U_r + r_projection_b)
+    g_fun = lambda x: np.tanh(r_fun(x) * (x @ U_h) + g_projection_b)
 
     if method == 'joint':
         def fun(x):
-            return np.mean(0.5 * np.sum((((1 - z_fun(x)) * (g_fun(x) - x)) ** 2), axis=1))
+            return np.mean(1/n_hidden * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2), axis=1))
     elif method == 'sequential':
-        fun = lambda x: 0.5 * np.sum(((1 - z_fun(x)) * (g_fun(x) - x)) ** 2)
+        fun = lambda x: 1/n_hidden * np.sum((- x + (z_fun(x) * x) + ((1 - z_fun(x)) * g_fun(x))) ** 2)
     elif method == 'velocity':
-        fun = lambda x: 0.5 * np.sum((((1 - z_fun(x)) * (g_fun(x) - x)) ** 2), axis=1)
+        fun = lambda x: 0.5 * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2), axis=1)
     else:
         raise ValueError('Method argument to build function must be one of '
                      '[joint, sequential, velocity] but was', method)
 
     def dynamical_system(x):
-        return (1 - z_fun(x)) * (g_fun(x) - x)
+        return - x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)
     jac_fun = nd.Jacobian(dynamical_system)
 
     return fun, jac_fun

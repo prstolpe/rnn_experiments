@@ -9,7 +9,7 @@ class Minimizer(object):
                        verbose):
         self.beta_1 = 0.9
         self.beta_2 = 0.999
-        self.eps = 1e-08
+        self.eps = 1e-07
         self.epsilon = epsilon
         self.alr_decayr = alr_decayr
         self.max_iter = max_iter
@@ -22,8 +22,8 @@ class Minimizer(object):
     scalar function. However, it is predominantly used by fixedpointfinder classes."""
 
     @staticmethod
-    def _print_update(q, lr):
-        print("Function value:", q, "; lr:", np.round(lr, 4))
+    def _print_update(q, lr, agnc, norm):
+        print("Function value:", q, "; lr:", np.round(lr, 4), "; agnc", agnc, "; norm", norm)
 
     @staticmethod
     def _decay_lr(initial_lr, decay, iteration):
@@ -58,7 +58,7 @@ class Minimizer(object):
             x0 = x0 - lr * m_hat / (np.sqrt(v_hat) + eps)
 
             if t % self.print_every == 0 and self.verbose:
-                self._print_update(q, lr)
+                self._print_update(q, lr, agnc, norm)
 
         return x0
 
@@ -89,7 +89,7 @@ class Minimizer(object):
             x0 = x0 - lr * m_hat / (np.sqrt(v_hat) + eps)
 
             if t % self.print_every == 0 and self.verbose:
-                self._print_update((q - mean_vel), lr)
+                self._print_update((q - mean_vel), lr, agnc, norm)
 
         return x0
 
@@ -162,7 +162,7 @@ class RecordableMinimizer(Minimizer):
             x0 = x0 - lr * m_hat / (np.sqrt(v_hat) + eps)
 
             if t % self.print_every == 0 and self.verbose:
-                self._print_update(q, lr)
+                self._print_update(q, lr, agnc, norm)
                 optimization_history.append(x0)
 
         return x0, optimization_history
