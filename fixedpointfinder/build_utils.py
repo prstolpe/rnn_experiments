@@ -47,7 +47,7 @@ def build_gru_ds(weights, n_hidden, input, method: str = 'joint'):
     elif method == 'sequential':
         fun = lambda x: 1/n_hidden * np.sum((- x + (z_fun(x) * x) + ((1 - z_fun(x)) * g_fun(x))) ** 2)
     elif method == 'velocity':
-        fun = lambda x: 0.5 * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2), axis=1)
+        fun = lambda x: 1/n_hidden * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2), axis=1)
     else:
         raise ValueError('Method argument to build function must be one of '
                      '[joint, sequential, velocity] but was', method)
