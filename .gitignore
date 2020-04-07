@@ -135,3 +135,4 @@ videos/
 
 ./saved/
 ./fixedpointfinder/saved/
+*.h5
