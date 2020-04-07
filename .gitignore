@@ -134,3 +134,4 @@ videos/
 *.mp4
 
 ./saved/
+./fixedpointfinder/saved/
