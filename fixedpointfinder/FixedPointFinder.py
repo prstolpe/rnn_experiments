@@ -4,10 +4,13 @@ import numpy as np
 import multiprocessing as mp
 import numdifftools as nd
 from scipy.optimize import minimize
-from fixedpointfinder.build_utils import build_rnn_ds, build_gru_ds, build_lstm_ds
-from fixedpointfinder.minimization import Minimizer, adam_lstm, RecordableMinimizer
-from utilities.model_utils import build_sub_model_to
+from analysis.rnn_dynamical_systems.fixedpointfinder.build_utils import build_rnn_ds, build_gru_ds, build_lstm_ds
+from analysis.rnn_dynamical_systems.fixedpointfinder.minimization import Minimizer, adam_lstm, RecordableMinimizer, \
+    CircularMinimizer
+from utilities.util import flatten, parse_state, add_state_dims, flatten, insert_unknown_shape_dimensions
+from utilities.model_utils import build_sub_model_to, build_sub_model_from
 import tensorflow as tf
+from analysis.investigation import Investigator
 
 
 class FixedPointFinder(object):
@@ -16,7 +19,6 @@ class FixedPointFinder(object):
                     'tol_unique': 1e-03,
                     'verbose': True,
                     'random_seed': 0}
-
 
     def __init__(self, weights, rnn_type,
                  q_threshold=_default_hps['q_threshold'],
@@ -103,7 +105,6 @@ class FixedPointFinder(object):
 
         return sampled_activations, sampled_inputs
 
-
     def sample_states(self, activations, n_inits, noise_level=0.5):
         """Draws [n_inits] random samples from recurrent layer activations.
 
@@ -147,7 +148,6 @@ class FixedPointFinder(object):
         Raises:
             ValueError if noise_scale is negative.
         """
-
         # Add IID Gaussian noise
         if noise_scale == 0.0:
             return data # no noise to add
@@ -812,3 +812,150 @@ class RecordingFixedpointfinder(Adamfixedpointfinder):
 
         return fixedpoints, recorded_points
 
+
+class AdamCircularFpf(Adamfixedpointfinder):
+    adam_default_hps = {'alr_hps': {'decay_rate': 0.0005},
+                        'agnc_hps': {'norm_clip': 1.0,
+                                     'decay_rate': 1e-03},
+                        'adam_hps': {'epsilon': 1e-03,
+                                     'max_iters': 5000,
+                                     'method': 'joint',
+                                     'print_every': 200}}
+
+    def __init__(self, weights, rnn_type, sub_model_to, sub_model_from, env,
+                 distribution, preprocessor, network,
+                 q_threshold=FixedPointFinder._default_hps['q_threshold'],
+                 tol_unique=FixedPointFinder._default_hps['tol_unique'],
+                 verbose=FixedPointFinder._default_hps['verbose'],
+                 random_seed=FixedPointFinder._default_hps['random_seed'],
+                 alr_decayr=adam_default_hps['alr_hps']['decay_rate'],
+                 agnc_normclip=adam_default_hps['agnc_hps']['norm_clip'],
+                 agnc_decayr=adam_default_hps['agnc_hps']['decay_rate'],
+                 epsilon=adam_default_hps['adam_hps']['epsilon'],
+                 max_iters = adam_default_hps['adam_hps']['max_iters'],
+                 method = adam_default_hps['adam_hps']['method'],
+                 print_every = adam_default_hps['adam_hps']['print_every']):
+
+        Adamfixedpointfinder.__init__(self, weights, rnn_type,
+                                      q_threshold=q_threshold,
+                                      tol_unique=tol_unique,
+                                      verbose=verbose,
+                                      random_seed=random_seed,
+                                      alr_decayr=alr_decayr,
+                                      agnc_normclip=agnc_normclip,
+                                      agnc_decayr=agnc_decayr,
+                                      epsilon=epsilon,
+                                      max_iters=max_iters,
+                                      method=method,
+                                      print_every=print_every)
+
+        self.sub_model_from = sub_model_from
+        self.sub_model_to = sub_model_to
+        self.env = env
+        self.distribution = distribution
+        self.preprocessor = preprocessor
+        self.network = network
+
+
+    def find_fixed_points(self, x0, inputs):
+        """Compute fixedpoints and determine the uniqueness as well as jacobian matrix.
+            Optimization can occur either joint or sequential.
+
+        Args:
+            x0: set of initial conditions to optimize from.
+
+            inputs: set of inputs to recurrent layer corresponding to initial conditions.
+
+        Returns:
+            List of fixedpointobjects that are unique and equipped with their repsective
+            jacobian matrix."""
+
+        if self.method == 'joint':
+            fixedpoints = self._joint_optimization(x0, inputs)
+        elif self.method == 'sequential':
+            fixedpoints = self._sequential_optimization(x0, inputs)
+        else:
+            raise ValueError('HyperParameter for adam optimizer: method must be either "joint"'
+                             'or "sequential". However, it was %s', self.method)
+
+        good_fps, bad_fps = self._handle_bad_approximations(fixedpoints)
+        unique_fps = self._find_unique_fixed_points(good_fps)
+
+        unique_fps = self._compute_jacobian(unique_fps)
+
+        return unique_fps
+
+    def _joint_optimization(self, x0, inputs):
+        """Function to perform joint optimization. All inputs and initial conditions
+        will be optimized simultaneously.
+
+        Args:
+            x0: numpy array containing a set of initial conditions. Must have dimensions
+            [n_init x n_units]. No default.
+
+            inputs: numpy array containing a set of inputs to the recurrent layer corresponding
+            to the activations in x0. Must have dimensions [n_init x n_units]. No default.
+
+        Returns:
+            Fixedpointobject. See _create_fixedpoint_object for further documenation."""
+        # optimize
+        minimizer = CircularMinimizer(epsilon=self.epsilon,
+                                      alr_decayr=self.alr_decayr,
+                                      max_iter=self.max_iters,
+                                      print_every=self.print_every,
+                                      init_agnc=self.agnc_normclip,
+                                      agnc_decayr=self.agnc_decayr,
+                                      verbose=self.verbose)
+        for t in range(self.max_iters):
+
+            if self.rnn_type == 'vanilla':
+                fun, jac_fun = build_rnn_ds(self.weights, self.n_hidden, inputs, self.method)
+            elif self.rnn_type == 'gru':
+                fun, jac_fun = build_gru_ds(self.weights, self.n_hidden, inputs, self.method)
+            elif self.rnn_type == 'lstm':
+                fun, jac_fun = build_lstm_ds(self.weights, inputs, self.n_hidden, self.method)
+            else:
+                raise ValueError('Hyperparameter rnn_type must be one of'
+                                 '[vanilla, gru, lstm] but was %s', self.rnn_type)
+
+            # optimize
+            fps = minimizer.adam_optimization(fun, x0, t)
+            all_inputs = []
+            for k in range(len(x0)):
+                self.env.reset()
+                self.env.goal=1
+                # to env
+                activation = fps[k, :].reshape(1, 1, self.n_hidden)
+                probabilities = flatten(self.sub_model_from.predict(activation))
+
+                action = self.distribution.act_deterministic(*probabilities)
+                observation, reward, done, i = self.env.step(action)
+                observation, reward, done, i = self.preprocessor.modulate((parse_state(observation), reward, done, i),
+                                                                          update=False)
+                state = observation
+                # from env
+                dual_out = flatten(self.sub_model_to.predict(add_state_dims(parse_state(state), dims=2)))
+                activation, probabilities = dual_out[:-len(self.network.output)], dual_out[-len(self.network.output):]
+                activations = list(map(np.array, activation))
+
+                inputs = np.reshape(activations[2], (activations[2].shape[0], self.n_hidden))
+                activations = np.reshape(activations[1], (activations[1].shape[0], self.n_hidden))
+                all_inputs.append(inputs)
+            inputs = np.vstack(all_inputs)
+            x0 = fps
+
+        fixedpoints = []
+        for i in range(len(fps)):
+            if self.rnn_type == 'vanilla':
+                fun, _ = build_rnn_ds(self.weights, self.n_hidden, inputs[i, :], 'sequential')
+            elif self.rnn_type == 'gru':
+                fun, _ = build_gru_ds(self.weights, self.n_hidden, inputs[i, :], 'sequential')
+            elif self.rnn_type == 'lstm':
+                fun, _ = build_lstm_ds(self.weights, self.n_hidden, inputs[i, :], 'sequential')
+            else:
+                raise ValueError('Hyperparameter rnn_type must be one of'
+                                 '[vanilla, gru, lstm] but was %s', self.rnn_type)
+
+            fixedpoints.append(self._create_fixedpoint_object(fun, fps, x0, inputs))
+        fixedpoints = [item for sublist in fixedpoints for item in sublist]
+        return fixedpoints
