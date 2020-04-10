@@ -919,7 +919,7 @@ class AdamCircularFpf(Adamfixedpointfinder):
                                  '[vanilla, gru, lstm] but was %s', self.rnn_type)
 
             # optimize
-            fps = minimizer.adam_optimization(fun, x0, t)
+            fps = minimizer.adam_optimization(fun, x0, 1)
             all_inputs = []
             for k in range(len(x0)):
                 self.env.reset()
