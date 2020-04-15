@@ -3,9 +3,13 @@ import numdifftools as nd
 
 # TODO: could also be turned into class object
 
+
 class DynamicalSystemsBuilder(object):
 
-    pass
+    def __init__(self):
+        pass
+
+
 def build_rnn_ds(weights, n_hidden, inputs, method: str = 'joint'):
     weights, inputweights, b = weights[1], weights[0], weights[2]
 
@@ -167,5 +171,69 @@ def build_circular_gru_ds(weights, n_hidden, input, method: str = 'joint'):
     jac_fun = nd.Jacobian(dynamical_system)
 
     return fun, jac_fun
+
+    def build_numpy_submodelto(submodel_weights):
+        first_layer = lambda x: np.tanh(x @ submodel_weights[0] + submodel_weights[1])
+        second_layer = lambda x: np.tanh(x @ submodel_weights[2] + submodel_weights[3])
+        third_layer = lambda x: np.tanh(x @ submodel_weights[4] + submodel_weights[5])
+        fourth_layer = lambda x: np.tanh(x @ submodel_weights[6] + submodel_weights[7])
+
+        return first_layer, second_layer, third_layer, fourth_layer
+
+    def build_numpy_submodelfrom(submodel_weights):
+        softplus = lambda x: np.log(np.exp(x) + 1)
+        alpha_fun = lambda x: softplus(x @ submodel_weights[0] + submodel_weights[1])
+        beta_fun = lambda x: softplus(x @ submodel_weights[2] + submodel_weights[3])
+
+        return alpha_fun, beta_fun
+
+    submodelfrom_weights = chiefinvesti.sub_model_from.get_weights()
+    alpha_fun, beta_fun = build_numpy_submodelfrom(submodelfrom_weights)
+    alphas = alpha_fun(activations_over_all_episodes)
+    betas = beta_fun(activations_over_all_episodes)
+
+
+    def act_deterministic(alphas, betas):
+        actions = (alphas - 1) / (alphas + betas - 2)
+
+        action_max_values = chiefinvesti.env.action_space.high
+        action_min_values = chiefinvesti.env.action_space.low
+        action_mm_diff = action_max_values - action_min_values
+
+        actions = np.multiply(actions, action_mm_diff) + action_min_values
+
+        return actions
+    actions = act_deterministic(alphas, betas)
+
+    def unwrapper(means, variances, states):
+        unwrapped_states = []
+        for state in states:
+            unwrapped_states.append((state * np.sqrt(variances)) + means)
+
+        return np.vstack(unwrapped_states)
+
+    means = chiefinvesti.preprocessor.wrappers[0].mean[0]
+    variances = chiefinvesti.preprocessor.wrappers[0].variance[0]
+    states_all_episodes = np.vstack(states_all_episodes)
+    unwrapped_states = unwrapper(means, variances, states_all_episodes)
+
+    pca = skld.PCA(3)
+
+    transformed_states = pca.fit_transform(unwrapped_states[:100, :])
+    transformed_states_wrapped = pca.transform(states_all_episodes[:100, :])
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+
+    ax.plot(transformed_states[:, 0], transformed_states[:, 1], transformed_states[:, 2])
+    plt.title('unwrapped states')
+    plt.show()
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+
+    ax.plot(transformed_states_wrapped[:, 0], transformed_states_wrapped[:, 1], transformed_states_wrapped[:, 2])
+    plt.title('wrapped states')
+    plt.show()
 
 
