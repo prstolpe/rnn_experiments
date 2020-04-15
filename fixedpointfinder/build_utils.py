@@ -6,69 +6,145 @@ import numdifftools as nd
 
 class DynamicalSystemsBuilder(object):
 
-    def __init__(self):
+    def __init__(self, recurrent_layer_weights, n_recurrent_units,
+                 to_recurrent_layer_weights=None, from_recurrent_layer_weights=None):
+
+        self.recurrent_layer_weights = recurrent_layer_weights
+        self.n_recurrent_units = n_recurrent_units
+        self.to_recurrent_layer_weights = to_recurrent_layer_weights
+        self.from_recurrent_layer_weights = from_recurrent_layer_weights
+
+
+    def build_ds(self, inputs):
         pass
 
 
-def build_rnn_ds(weights, n_hidden, inputs, method: str = 'joint'):
-    weights, inputweights, b = weights[1], weights[0], weights[2]
+class RnnDsBuilder(DynamicalSystemsBuilder):
 
-    if method == 'joint':
+    def __init__(self, recurrent_layer_weights, n_recurrent_units,
+                 to_recurrent_layer_weights=None, from_recurrent_layer_weights=None):
+
+        super().__init__(recurrent_layer_weights, n_recurrent_units,
+                 to_recurrent_layer_weights, from_recurrent_layer_weights)
+
+        self.weights, self.inputweights, self.b = recurrent_layer_weights[1], recurrent_layer_weights[0], \
+                                   recurrent_layer_weights[2]
+        self.n_hidden = n_recurrent_units
+
+    def build_sequential_ds(self, inputs):
         def fun(x):
-            return np.mean(1/n_hidden * np.sum(((- x + np.tanh(x @ weights + inputs @ inputweights + b)) ** 2), axis=1))
-    elif method == 'sequential':
+            return 1 / self.n_hidden * np.sum((- x + np.tanh(x @ self.weights + inputs @ self.inputweights + self.b)) ** 2)
+
+        return fun
+
+    def build_joint_ds(self, inputs):
         def fun(x):
-            return 1/n_hidden * np.sum((- x + np.tanh(x @ weights + inputs @ inputweights + b)) ** 2)
-    elif method == 'velocity':
+            return np.mean(
+                1 / self.n_hidden * np.sum(((- x + np.tanh(x @ self.weights + inputs @ self.inputweights + self.b)) ** 2), axis=1))
+
+        return fun
+
+    def build_velocity_fun(self, inputs):
         def fun(x):
-            return 0.5 * np.sum(((- x + np.tanh(x @ weights + inputs @ inputweights + b)) ** 2), axis=1)
-    else:
-        raise ValueError('Method argument to build function must be one of '
-                         '[joint, sequential, velocity] but was', method)
+            return 0.5 * np.sum(((- x + np.tanh(x @ self.weights + inputs @ self.inputweights + self.b)) ** 2), axis=1)
 
-    jac_fun = lambda x: - np.eye(n_hidden, n_hidden) + weights * (1 - np.tanh(x) ** 2)
+        return fun
 
-    return fun, jac_fun
+    def build_jacobian_fun(self):
+        jac_fun = lambda x: - np.eye(self.n_hidden, self.n_hidden) + self.weights * (1 - np.tanh(x) ** 2)
+
+        return jac_fun
 
 
-def build_gru_ds(weights, n_hidden, input, method: str = 'joint'):
+class GruDsBuilder(DynamicalSystemsBuilder):
 
-    def sigmoid(x):
-        return 1 / (1 + np.exp(-x))
+    def __init__(self, recurrent_layer_weights, n_recurrent_units,
+                 to_recurrent_layer_weights=None, from_recurrent_layer_weights=None):
 
-    z, r, h = np.arange(0, n_hidden), np.arange(n_hidden, 2 * n_hidden), np.arange(2 * n_hidden, 3 * n_hidden)
-    W_z, W_r, W_h = weights[0][:, z], weights[0][:, r], weights[0][:, h]
-    U_z, U_r, U_h = weights[1][:, z], weights[1][:, r], weights[1][:, h]
-    b_z, b_r, b_h = weights[2][0, z], weights[2][0, r], weights[2][0, h]
+        super().__init__(recurrent_layer_weights, n_recurrent_units,
+                         to_recurrent_layer_weights, from_recurrent_layer_weights)
 
-    z_projection_b = input @ W_z + b_z
-    r_projection_b = input @ W_r + b_r
-    g_projection_b = input @ W_h + b_h
+        weights, self.n_hidden = self.recurrent_layer_weights, n_recurrent_units
 
-    z_fun = lambda x: sigmoid(x @ U_z + z_projection_b)
-    r_fun = lambda x: sigmoid(x @ U_r + r_projection_b)
-    g_fun = lambda x: np.tanh(r_fun(x) * (x @ U_h) + g_projection_b)
+        z, r, h = np.arange(0, self.n_hidden), np.arange(self.n_hidden, 2 * self.n_hidden), \
+                  np.arange(2 * self.n_hidden, 3 * self.n_hidden)
+        self.W_z, self.W_r, self.W_h = weights[0][:, z], weights[0][:, r], weights[0][:, h]
+        self.U_z, self.U_r, self.U_h = weights[1][:, z], weights[1][:, r], weights[1][:, h]
+        self.b_z, self.b_r, self.b_h = weights[2][0, z], weights[2][0, r], weights[2][0, h]
 
-    if method == 'joint':
+    def build_joint_ds(self, input):
+
+        def sigmoid(x):
+            return 1 / (1 + np.exp(-x))
+
+        z_projection_b = input @ self.W_z + self.b_z
+        r_projection_b = input @ self.W_r + self.b_r
+        g_projection_b = input @ self.W_h + self.b_h
+
+        z_fun = lambda x: sigmoid(x @ self.U_z + z_projection_b)
+        r_fun = lambda x: sigmoid(x @ self.U_r + r_projection_b)
+        g_fun = lambda x: np.tanh(r_fun(x) * (x @ self.U_h) + g_projection_b)
+
         def fun(x):
-            return np.mean(1/n_hidden * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2), axis=1))
-    elif method == 'sequential':
-        fun = lambda x: 1/n_hidden * np.sum((- x + (z_fun(x) * x) + ((1 - z_fun(x)) * g_fun(x))) ** 2)
-    elif method == 'velocity':
-        fun = lambda x: 1/n_hidden * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2), axis=1)
-    else:
-        raise ValueError('Method argument to build function must be one of '
-                     '[joint, sequential, velocity] but was', method)
+            return np.mean(1 / self.n_hidden * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2), axis=1))
 
-    def dynamical_system(x):
-        return - x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)
-    jac_fun = nd.Jacobian(dynamical_system)
+        return fun
 
-    return fun, jac_fun
+    def build_sequential_ds(self, input):
+        def sigmoid(x):
+            return 1 / (1 + np.exp(-x))
+
+        z_projection_b = input @ self.W_z + self.b_z
+        r_projection_b = input @ self.W_r + self.b_r
+        g_projection_b = input @ self.W_h + self.b_h
+
+        z_fun = lambda x: sigmoid(x @ self.U_z + z_projection_b)
+        r_fun = lambda x: sigmoid(x @ self.U_r + r_projection_b)
+        g_fun = lambda x: np.tanh(r_fun(x) * (x @ self.U_h) + g_projection_b)
+
+        fun = lambda x: 1/self.n_hidden * np.sum((- x + (z_fun(x) * x) + ((1 - z_fun(x)) * g_fun(x))) ** 2)
+
+        return fun
+
+    def build_velocity_fun(self, input):
+
+        def sigmoid(x):
+            return 1 / (1 + np.exp(-x))
+
+        z_projection_b = input @ self.W_z + self.b_z
+        r_projection_b = input @ self.W_r + self.b_r
+        g_projection_b = input @ self.W_h + self.b_h
+
+        z_fun = lambda x: sigmoid(x @ self.U_z + z_projection_b)
+        r_fun = lambda x: sigmoid(x @ self.U_r + r_projection_b)
+        g_fun = lambda x: np.tanh(r_fun(x) * (x @ self.U_h) + g_projection_b)
+
+        fun = lambda x: 1/self.n_hidden * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2), axis=1)
+
+        return fun
+
+    def build_jacobian_fun(self, input):
+
+        def sigmoid(x):
+            return 1 / (1 + np.exp(-x))
+
+        z_projection_b = input @ self.W_z + self.b_z
+        r_projection_b = input @ self.W_r + self.b_r
+        g_projection_b = input @ self.W_h + self.b_h
+
+        z_fun = lambda x: sigmoid(x @ self.U_z + z_projection_b)
+        r_fun = lambda x: sigmoid(x @ self.U_r + r_projection_b)
+        g_fun = lambda x: np.tanh(r_fun(x) * (x @ self.U_h) + g_projection_b)
+
+        def dynamical_system(x):
+            return - x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)
+        jac_fun = nd.Jacobian(dynamical_system)
+
+        return jac_fun
 
 
-def build_lstm_ds(weights, input, n_hidden, method: str = 'joint'):
-
+def build_lstm_ds(self, input, method: str = 'joint'):
+    weights, n_hidden = self.recurrent_layer_weights, self.n_recurrent_units
     def sigmoid(x):
         return 1 / (1 + np.exp(-x))
 
@@ -137,8 +213,8 @@ def build_lstm_ds(weights, input, n_hidden, method: str = 'joint'):
 
     return fun, jac_fun
 
-def build_circular_gru_ds(weights, n_hidden, input, method: str = 'joint'):
-
+def build_circular_gru_ds(self, input, method: str = 'joint'):
+    weights, n_hidden = self.recurrent_layer_weights, self.n_recurrent_units
     def sigmoid(x):
         return 1 / (1 + np.exp(-x))
 
@@ -172,18 +248,18 @@ def build_circular_gru_ds(weights, n_hidden, input, method: str = 'joint'):
 
     return fun, jac_fun
 
-    def build_numpy_submodelto(submodel_weights):
-        first_layer = lambda x: np.tanh(x @ submodel_weights[0] + submodel_weights[1])
-        second_layer = lambda x: np.tanh(x @ submodel_weights[2] + submodel_weights[3])
-        third_layer = lambda x: np.tanh(x @ submodel_weights[4] + submodel_weights[5])
-        fourth_layer = lambda x: np.tanh(x @ submodel_weights[6] + submodel_weights[7])
+    def build_numpy_submodelto(to_recurrent_layer_weights):
+        first_layer = lambda x: np.tanh(x @ to_recurrent_layer_weights[0] + to_recurrent_layer_weights[1])
+        second_layer = lambda x: np.tanh(x @ to_recurrent_layer_weights[2] + to_recurrent_layer_weights[3])
+        third_layer = lambda x: np.tanh(x @ to_recurrent_layer_weights[4] + to_recurrent_layer_weights[5])
+        fourth_layer = lambda x: np.tanh(x @ to_recurrent_layer_weights[6] + to_recurrent_layer_weights[7])
 
         return first_layer, second_layer, third_layer, fourth_layer
 
-    def build_numpy_submodelfrom(submodel_weights):
+    def build_numpy_submodelfrom(from_recurrent_layer_weights):
         softplus = lambda x: np.log(np.exp(x) + 1)
-        alpha_fun = lambda x: softplus(x @ submodel_weights[0] + submodel_weights[1])
-        beta_fun = lambda x: softplus(x @ submodel_weights[2] + submodel_weights[3])
+        alpha_fun = lambda x: softplus(x @ from_recurrent_layer_weights[0] + from_recurrent_layer_weights[1])
+        beta_fun = lambda x: softplus(x @ from_recurrent_layer_weights[2] + from_recurrent_layer_weights[3])
 
         return alpha_fun, beta_fun
 
@@ -192,25 +268,24 @@ def build_circular_gru_ds(weights, n_hidden, input, method: str = 'joint'):
     alphas = alpha_fun(activations_over_all_episodes)
     betas = beta_fun(activations_over_all_episodes)
 
+def act_deterministic(alphas, betas):
+    actions = (alphas - 1) / (alphas + betas - 2)
 
-    def act_deterministic(alphas, betas):
-        actions = (alphas - 1) / (alphas + betas - 2)
+    action_max_values = chiefinvesti.env.action_space.high
+    action_min_values = chiefinvesti.env.action_space.low
+    action_mm_diff = action_max_values - action_min_values
 
-        action_max_values = chiefinvesti.env.action_space.high
-        action_min_values = chiefinvesti.env.action_space.low
-        action_mm_diff = action_max_values - action_min_values
+    actions = np.multiply(actions, action_mm_diff) + action_min_values
 
-        actions = np.multiply(actions, action_mm_diff) + action_min_values
-
-        return actions
+    return actions
     actions = act_deterministic(alphas, betas)
 
-    def unwrapper(means, variances, states):
-        unwrapped_states = []
-        for state in states:
-            unwrapped_states.append((state * np.sqrt(variances)) + means)
+def unwrapper(means, variances, states):
+    unwrapped_states = []
+    for state in states:
+        unwrapped_states.append((state * np.sqrt(variances)) + means)
 
-        return np.vstack(unwrapped_states)
+    return np.vstack(unwrapped_states)
 
     means = chiefinvesti.preprocessor.wrappers[0].mean[0]
     variances = chiefinvesti.preprocessor.wrappers[0].variance[0]
