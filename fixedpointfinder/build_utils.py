@@ -102,7 +102,8 @@ class GruDsBuilder(DynamicalSystemsBuilder):
         r_fun = lambda x: sigmoid(x @ self.U_r + r_projection_b)
         g_fun = lambda x: np.tanh(r_fun(x) * (x @ self.U_h) + g_projection_b)
 
-        fun = lambda x: 1/self.n_hidden * np.sum((- x + (z_fun(x) * x) + ((1 - z_fun(x)) * g_fun(x))) ** 2)
+        def fun(x):
+            return 1/self.n_hidden * np.sum((- x + (z_fun(x) * x) + ((1 - z_fun(x)) * g_fun(x))) ** 2)
 
         return fun
 

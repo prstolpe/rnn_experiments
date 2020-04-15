@@ -1,5 +1,5 @@
 import numpy as np
-import multiprocessing as mp
+import pathos.multiprocessing as mp
 import numdifftools as nd
 from scipy.optimize import minimize
 from analysis.rnn_dynamical_systems.fixedpointfinder.build_utils import RnnDsBuilder, GruDsBuilder
@@ -481,9 +481,10 @@ class Scipyfixedpointfinder(FixedPointFinder):
         pool = mp.Pool(mp.cpu_count())
         combined_objects = []
         for i in range(len(x0)):
+            fun = self.builder.build_sequential_ds(inputs[i, :])
             combined_objects.append((x0[i, :], inputs[i, :], self.rnn_type,
                                      self.n_hidden, self.weights, self.method,
-                                     self.xtol, self.display))
+                                     self.xtol, self.display, fun))
         fps = pool.map(self._scipy_optimization, combined_objects, chunksize=1)
         fps = [item for sublist in fps for item in sublist]
 
@@ -527,12 +528,11 @@ class Scipyfixedpointfinder(FixedPointFinder):
 
         Returns:
             Fixedpoint dictionary containing a single fixed point."""
-        x0, inputs, rnn_type, n_hidden, weights, method, xtol, display = combined_object[0], combined_object[1], \
-                                                                         combined_object[2], combined_object[3], \
-                                                                         combined_object[4], combined_object[5], \
-                                                                         combined_object[6], combined_object[7]
-
-        fun = FixedPointFinder.builder.build_sequential_ds(inputs)
+        x0, inputs, rnn_type, n_hidden, weights, method, xtol, display, fun = combined_object[0], combined_object[1], \
+                                                                              combined_object[2], combined_object[3], \
+                                                                              combined_object[4], combined_object[5], \
+                                                                              combined_object[6], combined_object[7], \
+                                                                              combined_object[8]
 
         jac, hes = nd.Gradient(fun), nd.Hessian(fun)
         options = {'disp': display,
