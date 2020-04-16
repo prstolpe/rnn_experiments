@@ -3,11 +3,19 @@ from autograd import grad
 
 
 class Minimizer(object):
+    default_hps = {'epsilon': 1e-03,
+                   'alr_decayr': 1e-03,
+                   'max_iter': 5000,
+                   'print_every': 200,
+                   'init_agnc': 1,
+                   'agnc_decayr': 1e-03,
+                   'verbose': True}
 
-    def __init__(self, epsilon, alr_decayr,
-                       max_iter, print_every,
-                       init_agnc, agnc_decayr,
-                       verbose):
+    def __init__(self, epsilon=default_hps['epsilon'], alr_decayr=default_hps['alr_decayr'],
+                       max_iter=default_hps['max_iter'], print_every=default_hps['print_every'],
+                       init_agnc=default_hps['init_agnc'], agnc_decayr=default_hps['agnc_decayr'],
+                       verbose=default_hps['verbose']):
+
         self.beta_1 = 0.9
         self.beta_2 = 0.999
         self.eps = 1e-07
@@ -63,37 +71,6 @@ class Minimizer(object):
 
         return x0
 
-    def adam_weights_optimizer(self, fun, x0, mean_vel):
-        """Function to implement the adam optimization algorithm. Also included in this function are
-        functionality for adaptive learning rate as well as adaptive gradient norm clipping.
-
-        Goal of this function is to find a set of recurrent kernels that have certain desired
-        fixedpoint properties when put into an rnn."""
-
-        beta_1, beta_2 = self.beta_1, self.beta_2
-        eps = self.eps
-        m, v = np.zeros(x0.shape), np.zeros(x0.shape)
-        for t in range(self.max_iter):
-            q = fun(x0)
-            lr = self._decay_lr(self.epsilon, self.alr_decayr, t)
-            agnc = self._decay_agnc(self.init_agnc, self.agnc_decayr, t)
-
-            dq = grad(fun)(x0)
-            dq = (q - mean_vel) * dq
-            norm = np.linalg.norm(dq)
-            if norm > agnc:
-                dq = dq / norm
-            m = beta_1 * m + (1 - beta_1) * dq
-            v = beta_2 * v + (1 - beta_2) * np.power(dq, 2)
-            m_hat = m / (1 - np.power(beta_1, t + 1))
-            v_hat = v / (1 - np.power(beta_2, t + 1))
-            x0 = x0 - lr * m_hat / (np.sqrt(v_hat) + eps)
-
-            if t % self.print_every == 0 and self.verbose:
-                self._print_update((q - mean_vel), lr, agnc, norm)
-
-        return x0
-
 
 def adam_lstm(fun, x0,
               epsilon, alr_decayr,
@@ -138,6 +115,15 @@ def adam_lstm(fun, x0,
 
 
 class RecordableMinimizer(Minimizer):
+
+    def __init__(self, epsilon, alr_decayr,
+                       max_iter, print_every,
+                       init_agnc, agnc_decayr,
+                       verbose):
+        Minimizer.__init__(self, epsilon, alr_decayr,
+                           max_iter, print_every,
+                           init_agnc, agnc_decayr,
+                           verbose)
 
     def adam_optimization(self, fun, x0):
         """Function to implement the adam optimization algorithm. Also included in this function are

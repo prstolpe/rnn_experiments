@@ -2,7 +2,7 @@ import numpy as np
 import pathos.multiprocessing as mp
 import numdifftools as nd
 from scipy.optimize import minimize
-from analysis.rnn_dynamical_systems.fixedpointfinder.build_utils import RnnDsBuilder, GruDsBuilder
+from analysis.rnn_dynamical_systems.fixedpointfinder.build_utils import RnnDsBuilder, GruDsBuilder, CircularGruBuilder
 from analysis.rnn_dynamical_systems.fixedpointfinder.minimization import Minimizer, RecordableMinimizer, \
     CircularMinimizer
 from utilities.util import parse_state, add_state_dims, flatten, insert_unknown_shape_dimensions
@@ -740,8 +740,8 @@ class AdamCircularFpf(Adamfixedpointfinder):
                                      'method': 'joint',
                                      'print_every': 200}}
 
-    def __init__(self, weights, rnn_type, sub_model_to, sub_model_from, env,
-                 distribution, preprocessor, network,
+    def __init__(self, weights, rnn_type, env, to_recurrent_layer_weights,
+                 from_recurrent_layer_weights, act_state_weights,
                  q_threshold=FixedPointFinder._default_hps['q_threshold'],
                  tol_unique=FixedPointFinder._default_hps['tol_unique'],
                  verbose=FixedPointFinder._default_hps['verbose'],
@@ -766,16 +766,66 @@ class AdamCircularFpf(Adamfixedpointfinder):
                                       max_iters=max_iters,
                                       method=method,
                                       print_every=print_every)
+        if self.rnn_type == 'gru':
+            self.builder = CircularGruBuilder(self.weights, self.n_hidden, env, act_state_weights,
+                                              to_recurrent_layer_weights, from_recurrent_layer_weights)
 
-        self.sub_model_from = sub_model_from
-        self.sub_model_to = sub_model_to
-        self.env = env
-        self.distribution = distribution
-        self.preprocessor = preprocessor
-        self.network = network
+    @staticmethod
+    def create_fixedpoint_object(fun, fps, x0):
+        """Initial creation of a fixedpoint object. A fixedpoint object is a dictionary
+        providing information about a fixedpoint. Initial information is specified in
+        parameters of this function. Please note that e.g. jacobian matrices will be added
+        at a later stage to the fixedpoint object.
 
+        Args:
+            fun: function of dynamical system in which the fixedpoint has been optimized.
 
-    def find_fixed_points(self, x0, inputs):
+            fps: numpy array containing all optimized fixedpoints. It has the size
+            [n_init x n_units]. No default.
+
+            x0: numpy array containing all initial conditions. It has the size
+            [n_init x n_units]. No default.
+
+            inputs: numpy array containing all inputs corresponding to initial conditions.
+            It has the size [n_init x n_units]. No default.
+
+        Returns:
+            List of initialized fixedpointobjects."""
+
+        fixedpoints = []
+        k = 0
+        # TODO: make sequential function for each input
+        for fp in fps:
+
+            fixedpointobject = {'fun': fun(fp),
+                          'x': fp,
+                          'x_init': x0[k, :]}
+            fixedpoints.append(fixedpointobject)
+            k += 1
+
+        return fixedpoints
+
+    def _compute_jacobian(self, fixedpoints):
+        """Computes jacobians of fixedpoints. It is a linearization around the fixedpoint
+        in all dimensions.
+
+        Args: fixedpoints: fixedpointobject containing initialized fixed points, I.e. the object
+        must a least provide fp['x'], the position of the optimized fixedpoint in its n_units
+        dimensional space.
+
+        Retruns: fixedpoints: fixedpointobject that now contains a jacobian matrix in fp['jac'].
+        The jacobian matrix will have the dimensions [n_units x n_units]."""
+        k = 0
+
+        for fp in fixedpoints:
+            jac_fun = self.builder.build_jacobian_function()
+
+            fp['jac'] = jac_fun(fp['x'])
+            k += 1
+
+        return fixedpoints
+
+    def find_fixed_points(self, x0):
         """Compute fixedpoints and determine the uniqueness as well as jacobian matrix.
             Optimization can occur either joint or sequential.
 
@@ -789,9 +839,9 @@ class AdamCircularFpf(Adamfixedpointfinder):
             jacobian matrix."""
 
         if self.method == 'joint':
-            fixedpoints = self._joint_optimization(x0, inputs)
+            fixedpoints = self._joint_optimization(x0)
         elif self.method == 'sequential':
-            fixedpoints = self._sequential_optimization(x0, inputs)
+            fixedpoints = self._sequential_optimization(x0)
         else:
             raise ValueError('HyperParameter for adam optimizer: method must be either "joint"'
                              'or "sequential". However, it was %s', self.method)
@@ -803,7 +853,7 @@ class AdamCircularFpf(Adamfixedpointfinder):
 
         return unique_fps
 
-    def _joint_optimization(self, x0, inputs):
+    def _joint_optimization(self, x0):
         """Function to perform joint optimization. All inputs and initial conditions
         will be optimized simultaneously.
 
@@ -817,47 +867,19 @@ class AdamCircularFpf(Adamfixedpointfinder):
         Returns:
             Fixedpointobject. See _create_fixedpoint_object for further documenation."""
         # optimize
-        minimizer = CircularMinimizer(epsilon=self.epsilon,
-                                      alr_decayr=self.alr_decayr,
-                                      max_iter=self.max_iters,
-                                      print_every=self.print_every,
-                                      init_agnc=self.agnc_normclip,
-                                      agnc_decayr=self.agnc_decayr,
-                                      verbose=self.verbose)
-        for t in range(self.max_iters):
+        minimizer = Minimizer(epsilon=self.epsilon,
+                              alr_decayr=self.alr_decayr,
+                              max_iter=self.max_iters,
+                              print_every=self.print_every,
+                              init_agnc=self.agnc_normclip,
+                              agnc_decayr=self.agnc_decayr,
+                              verbose=self.verbose)
 
-            fun = None
+        fun = self.builder.build_circular_joint_model()
+        # optimize
+        fps = minimizer.adam_optimization(fun, x0)
 
-            # optimize
-            fps = minimizer.adam_optimization(fun, x0, 1)
-            all_inputs = []
-            for k in range(len(x0)):
-                self.env.reset()
-                self.env.goal=1
-                # to env
-                activation = fps[k, :].reshape(1, 1, self.n_hidden)
-                probabilities = flatten(self.sub_model_from.predict(activation))
+        fun = self.builder.build_circular_sequential_model()
+        fixedpoints = self.create_fixedpoint_object(fun, fps, x0)
 
-                action = self.distribution.act_deterministic(*probabilities)
-                observation, reward, done, i = self.env.step(action)
-                observation, reward, done, i = self.preprocessor.modulate((parse_state(observation), reward, done, i),
-                                                                          update=False)
-                state = observation
-                # from env
-                dual_out = flatten(self.sub_model_to.predict(add_state_dims(parse_state(state), dims=2)))
-                activation, probabilities = dual_out[:-len(self.network.output)], dual_out[-len(self.network.output):]
-                activations = list(map(np.array, activation))
-
-                inputs = np.reshape(activations[2], (activations[2].shape[0], self.n_hidden))
-                activations = np.reshape(activations[1], (activations[1].shape[0], self.n_hidden))
-                all_inputs.append(inputs)
-            inputs = np.vstack(all_inputs)
-            x0 = fps
-
-        fixedpoints = []
-        for i in range(len(fps)):
-            fun = None
-
-            fixedpoints.append(self._create_fixedpoint_object(fun, fps, x0, inputs))
-        fixedpoints = [item for sublist in fixedpoints for item in sublist]
         return fixedpoints

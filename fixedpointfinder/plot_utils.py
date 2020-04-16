@@ -136,7 +136,7 @@ def plot_fixed_points(activations, fps, n_points, scale):
 def visualize_flipflop(prediction, stim):
     """Function to visualize the 3-Bit flip flop task."""
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, sharey=True)
-    fig.suptitle('3-Bit Flip-Flop')
+    fig.title('3-Bit Flip-Flop')
     ax1.plot(prediction[0, :, 0], c='r')
     ax1.plot(stim['inputs'][0, :, 0], c='k')
     ax2.plot(stim['inputs'][0, :, 1], c='k')

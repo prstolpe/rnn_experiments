@@ -214,72 +214,105 @@ def build_lstm_ds(self, input, method: str = 'joint'):
 
     return fun, jac_fun
 
-def build_circular_gru_ds(self, input, method: str = 'joint'):
-    weights, n_hidden = self.recurrent_layer_weights, self.n_recurrent_units
-    def sigmoid(x):
-        return 1 / (1 + np.exp(-x))
 
-    z, r, h = np.arange(0, n_hidden), np.arange(n_hidden, 2 * n_hidden), np.arange(2 * n_hidden, 3 * n_hidden)
-    W_z, W_r, W_h = weights[0][:, z], weights[0][:, r], weights[0][:, h]
-    U_z, U_r, U_h = weights[1][:, z], weights[1][:, r], weights[1][:, h]
-    b_z, b_r, b_h = weights[2][0, z], weights[2][0, r], weights[2][0, h]
+class CircularGruBuilder(GruDsBuilder):
 
-    z_projection_b = input @ W_z + b_z
-    r_projection_b = input @ W_r + b_r
-    g_projection_b = input @ W_h + b_h
+    def __init__(self, recurrent_layer_weights, n_recurrent_units, env, act_state_weights,
+                 to_recurrent_layer_weights=None, from_recurrent_layer_weights=None):
 
-    z_fun = lambda x: sigmoid(x @ U_z + z_projection_b)
-    r_fun = lambda x: sigmoid(x @ U_r + r_projection_b)
-    g_fun = lambda x: np.tanh(r_fun(x) * (x @ U_h) + g_projection_b)
+        super().__init__(recurrent_layer_weights, n_recurrent_units,
+                         to_recurrent_layer_weights, from_recurrent_layer_weights)
+        self.env = env
+        self.act_state_weights = act_state_weights
 
-    if method == 'joint':
-        def fun(x):
-            return np.mean(1/n_hidden * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2), axis=1))
-    elif method == 'sequential':
-        fun = lambda x: 1/n_hidden * np.sum((- x + (z_fun(x) * x) + ((1 - z_fun(x)) * g_fun(x))) ** 2)
-    elif method == 'velocity':
-        fun = lambda x: 1/n_hidden * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2), axis=1)
-    else:
-        raise ValueError('Method argument to build function must be one of '
-                     '[joint, sequential, velocity] but was', method)
-
-    def dynamical_system(x):
-        return - x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)
-    jac_fun = nd.Jacobian(dynamical_system)
-
-    return fun, jac_fun
-
-    def build_numpy_submodelto(to_recurrent_layer_weights):
-        first_layer = lambda x: np.tanh(x @ to_recurrent_layer_weights[0] + to_recurrent_layer_weights[1])
-        second_layer = lambda x: np.tanh(x @ to_recurrent_layer_weights[2] + to_recurrent_layer_weights[3])
-        third_layer = lambda x: np.tanh(x @ to_recurrent_layer_weights[4] + to_recurrent_layer_weights[5])
-        fourth_layer = lambda x: np.tanh(x @ to_recurrent_layer_weights[6] + to_recurrent_layer_weights[7])
+    def build_numpy_submodelto(self):
+        first_layer = lambda x: np.tanh(x @ self.to_recurrent_layer_weights[0] + self.to_recurrent_layer_weights[1])
+        second_layer = lambda x: np.tanh(x @ self.to_recurrent_layer_weights[2] + self.to_recurrent_layer_weights[3])
+        third_layer = lambda x: np.tanh(x @ self.to_recurrent_layer_weights[4] + self.to_recurrent_layer_weights[5])
+        fourth_layer = lambda x: np.tanh(x @ self.to_recurrent_layer_weights[6] + self.to_recurrent_layer_weights[7])
 
         return first_layer, second_layer, third_layer, fourth_layer
 
-    def build_numpy_submodelfrom(from_recurrent_layer_weights):
+    def build_numpy_submodelfrom(self):
         softplus = lambda x: np.log(np.exp(x) + 1)
-        alpha_fun = lambda x: softplus(x @ from_recurrent_layer_weights[0] + from_recurrent_layer_weights[1])
-        beta_fun = lambda x: softplus(x @ from_recurrent_layer_weights[2] + from_recurrent_layer_weights[3])
+        alpha_fun = lambda x: softplus(x @ self.from_recurrent_layer_weights[0] + self.from_recurrent_layer_weights[1])
+        beta_fun = lambda x: softplus(x @ self.from_recurrent_layer_weights[2] + self.from_recurrent_layer_weights[3])
 
         return alpha_fun, beta_fun
 
-    submodelfrom_weights = chiefinvesti.sub_model_from.get_weights()
-    alpha_fun, beta_fun = build_numpy_submodelfrom(submodelfrom_weights)
-    alphas = alpha_fun(activations_over_all_episodes)
-    betas = beta_fun(activations_over_all_episodes)
+    def act_deterministic(self, alphas, betas):
+        actions = (alphas - 1) / (alphas + betas - 2)
 
-def act_deterministic(alphas, betas):
-    actions = (alphas - 1) / (alphas + betas - 2)
+        action_max_values = self.env.action_space.high
+        action_min_values = self.env.action_space.low
+        action_mm_diff = action_max_values - action_min_values
 
-    action_max_values = chiefinvesti.env.action_space.high
-    action_min_values = chiefinvesti.env.action_space.low
-    action_mm_diff = action_max_values - action_min_values
+        actions = np.multiply(actions, action_mm_diff) + action_min_values
 
-    actions = np.multiply(actions, action_mm_diff) + action_min_values
+        return actions
 
-    return actions
-    actions = act_deterministic(alphas, betas)
+    def build_circular_joint_model(self):
+        first_layer, second_layer, third_layer, fourth_layer = self.build_numpy_submodelto()
+        alpha_fun, beta_fun = self.build_numpy_submodelfrom()
+
+        def sigmoid(x):
+            return 1 / (1 + np.exp(-x))
+
+        act_state_fun = lambda x: self.act_deterministic(alpha_fun(x), beta_fun(x)) @ self.act_state_weights.T
+        f_fun = lambda x: fourth_layer(third_layer(second_layer(first_layer(act_state_fun(x)))))
+
+        z_fun = lambda x: sigmoid(x @ self.U_z + f_fun(x) @ self.W_z + self.b_z)
+        r_fun = lambda x: sigmoid(x @ self.U_r + f_fun(x) @ self.W_r + self.b_r)
+        g_fun = lambda x: np.tanh(r_fun(x) * (x @ self.U_h) + f_fun(x) @ self.W_h + self.b_h)
+
+        def fun(x):
+            return np.mean(1 / self.n_hidden * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2), axis=1))
+
+        return fun
+
+    def build_circular_sequential_model(self):
+        first_layer, second_layer, third_layer, fourth_layer = self.build_numpy_submodelto()
+        alpha_fun, beta_fun = self.build_numpy_submodelfrom()
+
+        def sigmoid(x):
+            return 1 / (1 + np.exp(-x))
+
+        act_state_fun = lambda x: self.act_deterministic(alpha_fun(x), beta_fun(x)) @ self.act_state_weights.T
+        f_fun = lambda x: fourth_layer(third_layer(second_layer(first_layer(act_state_fun(x)))))
+
+        z_fun = lambda x: sigmoid(x @ self.U_z + f_fun(x) @ self.W_z + self.b_z)
+        r_fun = lambda x: sigmoid(x @ self.U_r + f_fun(x) @ self.W_r + self.b_r)
+        g_fun = lambda x: np.tanh(r_fun(x) * (x @ self.U_h) + f_fun(x) @ self.W_h + self.b_h)
+
+        def fun(x):
+            return 1 / self.n_hidden * np.sum(((- x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)) ** 2))
+
+        return fun
+
+    def build_jacobian_function(self):
+        first_layer, second_layer, third_layer, fourth_layer = self.build_numpy_submodelto()
+        alpha_fun, beta_fun = self.build_numpy_submodelfrom()
+
+        def sigmoid(x):
+            return 1 / (1 + np.exp(-x))
+
+        act_state_fun = lambda x: self.act_deterministic(alpha_fun(x), beta_fun(x)) @ self.act_state_weights.T
+        f_fun = lambda x: fourth_layer(third_layer(second_layer(first_layer(act_state_fun(x)))))
+
+        z_fun = lambda x: sigmoid(x @ self.U_z + f_fun(x) @ self.W_z + self.b_z)
+        r_fun = lambda x: sigmoid(x @ self.U_r + f_fun(x) @ self.W_r + self.b_r)
+        g_fun = lambda x: np.tanh(r_fun(x) * (x @ self.U_h) + f_fun(x) @ self.W_h + self.b_h)
+
+        def dynamical_system(x):
+            return - x + z_fun(x) * x + (1 - z_fun(x)) * g_fun(x)
+        jac_fun = nd.Jacobian(dynamical_system)
+
+        return jac_fun
+
+
+
+
+
 
 def unwrapper(means, variances, states):
     unwrapped_states = []
