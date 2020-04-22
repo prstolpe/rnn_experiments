@@ -314,7 +314,7 @@ class CircularGruBuilder(GruDsBuilder):
 
         return fun
 
-    def build_jacobian_function(self):
+    def build_jacobian_fun(self):
         first_layer, second_layer, third_layer, fourth_layer = self.build_numpy_submodelto()
         alpha_fun, beta_fun = self.build_numpy_submodelfrom()
 
@@ -334,9 +334,73 @@ class CircularGruBuilder(GruDsBuilder):
 
         return jac_fun
 
+class HopfDsBuilder:
 
+    def __init__(self, weights, n_hidden):
+        # parameters
+        self.f = .05  # intrinsic frequency
+        self.G = .1  # coupling strength
+        self.a1 = .1  # bifurcation parameter of region 1
+        self.a2 = .2  # bifurcation parameter of region 2
+        self.beta = .02  # scaling factor of noise
 
+        # coupling
+        self.C = np.zeros((2, 2))  # adjacency matrix
+        self.C[(1, 0)] = 1.  # region 1 affects region 2
+        self.C[(0, 1)] = 1.  # region 2 affects region 1
 
+        # setup
+        self.w = self.f * 2. * np.pi  # angular frequency
+        self.A = [self.a1, self.a2]
+        self.dsig = 0. #np.sqrt(1)*self.beta # precalculated timestep for noise
+
+    def build_joint_ds(self, inputs):
+        DiffX = lambda X: np.tile(X, (2, 1)) - np.transpose(np.tile(X, (2, 1)))
+        dx = lambda X, Y: - X + (
+                    (self.A - pow(X, 2) - pow(Y, 2)) * X - self.w * Y + self.G * (np.sum(self.C * DiffX(X), axis=1))) \
+                          + self.dsig * np.random.randn(2)
+        DiffY = lambda Y: np.tile(Y, (2, 1)) - np.transpose(np.tile(Y, (2, 1)))
+        dy = lambda X, Y: - Y + (
+                    (self.A - pow(X, 2) - pow(Y, 2)) * Y + self.w * X + self.G * (
+                np.sum(self.C * DiffY(Y), axis=1))) + self.dsig * np.random.randn(2)
+
+        def fun(X):
+            x, y = X[:2], X[2:]
+            return np.sum(np.abs((dx(x,y), dy(x,y))))
+
+        return fun
+
+    def build_sequential_ds(self, inputs):
+        DiffX = lambda X: np.tile(X, (2, 1)) - np.transpose(np.tile(X, (2, 1)))
+        dx = lambda X, Y: - X + (
+                    (self.A - pow(X, 2) - pow(Y, 2)) * X - self.w * Y + self.G * (np.sum(self.C * DiffX(X), axis=1))) \
+                          + self.dsig * np.random.randn(2)
+        DiffY = lambda Y: np.tile(Y, (2, 1)) - np.transpose(np.tile(Y, (2, 1)))
+        dy = lambda X, Y: - Y + (
+                    (self.A - pow(X, 2) - pow(Y, 2)) * Y + self.w * X + self.G * (
+                np.sum(self.C * DiffY(Y), axis=1))) + self.dsig * np.random.randn(2)
+
+        def fun(X):
+            x, y = X[:2], X[2:]
+            return np.sum(np.abs((dx(x,y), dy(x,y))))
+
+        return fun
+
+    def build_jacobian_fun(self, inputs):
+        DiffX = lambda X: np.tile(X, (2, 1)) - np.transpose(np.tile(X, (2, 1)))
+        dx = lambda X, Y: - X + (
+                    (self.A - pow(X, 2) - pow(Y, 2)) * X - self.w * Y + self.G * (np.sum(self.C * DiffX(X), axis=1))) \
+                          + self.dsig * np.random.randn(2)
+        DiffY = lambda Y: np.tile(Y, (2, 1)) - np.transpose(np.tile(Y, (2, 1)))
+        dy = lambda X, Y: - Y + (
+                    (self.A - pow(X, 2) - pow(Y, 2)) * Y + self.w * X + self.G * (
+                np.sum(self.C * DiffY(Y), axis=1))) + self.dsig * np.random.randn(2)
+
+        def fun(X):
+            x, y = X[:2], X[2:]
+            return np.sum((dx(x,y), dy(x,y)))
+        jac_fun = nd.Jacobian(fun)
+        return jac_fun
 
 
 def unwrapper(means, variances, states):

@@ -2,7 +2,8 @@ import numpy as np
 import pathos.multiprocessing as mp
 import numdifftools as nd
 from scipy.optimize import minimize
-from analysis.rnn_dynamical_systems.fixedpointfinder.build_utils import RnnDsBuilder, GruDsBuilder, CircularGruBuilder
+from analysis.rnn_dynamical_systems.fixedpointfinder.build_utils import RnnDsBuilder, GruDsBuilder, CircularGruBuilder, \
+    LstmDsBuilder, HopfDsBuilder
 from analysis.rnn_dynamical_systems.fixedpointfinder.minimization import Minimizer, RecordableMinimizer, \
     CircularMinimizer
 from utilities.util import parse_state, add_state_dims, flatten, insert_unknown_shape_dimensions
@@ -58,6 +59,10 @@ class FixedPointFinder(object):
             self.builder = GruDsBuilder(weights, self.n_hidden)
         elif self.rnn_type == 'lstm':
             self.n_hidden = int(weights[1].shape[1] / 4)
+            self.builder = LstmDsBuilder(weights, self.n_hidden)
+        elif self.rnn_type == 'hopf':
+            self.n_hidden = 0
+            self.builder = HopfDsBuilder(weights, self.n_hidden)
         else:
             raise ValueError('Hyperparameter rnn_type must be one of'
                              '[vanilla, gru, lstm] but was %s', self.rnn_type)
@@ -249,9 +254,9 @@ class FixedPointFinder(object):
         for fp in fps:
 
             fixedpointobject = {'fun': fun(fp),
-                          'x': fp,
-                          'x_init': x0[k, :],
-                          'input_init': inputs[k, :]}
+                                'x': fp,
+                                'x_init': x0[k, :],
+                                'input_init': inputs}
             fixedpoints.append(fixedpointobject)
             k += 1
 
@@ -414,7 +419,7 @@ class Adamfixedpointfinder(FixedPointFinder):
         for i in range(len(fps)):
             fun = self.builder.build_sequential_ds(inputs[i, :])
 
-            fixedpoints.append(self._create_fixedpoint_object(fun, fps, x0, inputs))
+            fixedpoints.append(self._create_fixedpoint_object(fun, fps, x0, inputs[i, :]))
         fixedpoints = [item for sublist in fixedpoints for item in sublist]
         return fixedpoints
 

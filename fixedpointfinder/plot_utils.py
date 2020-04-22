@@ -80,8 +80,8 @@ def plot_fixed_points(activations, fps, n_points, scale):
             elif trace**2 - 4 * det < 0:
                 print("spiral has been found")
             e_val, e_vecs = np.linalg.eig(fp['jac'])
-            ids = np.argwhere(np.real(e_val) > 0)
-            countgreaterzero = np.sum(e_val > 0)
+            ids = np.argwhere(np.real(e_val) > 1)
+            countgreaterzero = np.sum(e_val > 1)
             if countgreaterzero == 0:
                 print('stable fixed point was found.')
                 fp['fp_stability'] = 'stable fixed point'
@@ -112,7 +112,7 @@ def plot_fixed_points(activations, fps, n_points, scale):
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
     ax.plot(X_pca[:n_points, 0], X_pca[:n_points, 1], X_pca[:n_points, 2],
-            linewidth=0.2)
+            linewidth=0.7)
     for i in range(len(new_pca)):
         if fps[i]['fp_stability'] == 'stable fixed point':
             ax.scatter(new_pca[i, 0], new_pca[i, 1], new_pca[i, 2],
