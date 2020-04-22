@@ -436,6 +436,11 @@ class Adamfixedpointfinder(FixedPointFinder):
 
         Returns:
             Fixedpointobject. See _create_fixedpoint_object for further documenation."""
+
+        if len(x0.shape) == 1:
+            x0 = x0.reshape(1, -1)
+            inputs = inputs.reshape(1, -1)
+
         minimizer = Minimizer(epsilon=self.epsilon,
                               alr_decayr=self.alr_decayr,
                               max_iter=self.max_iters,
@@ -443,6 +448,7 @@ class Adamfixedpointfinder(FixedPointFinder):
                               init_agnc=self.agnc_normclip,
                               agnc_decayr=self.agnc_decayr,
                               verbose=self.verbose)
+
         fps = np.empty(x0.shape)
         for i in range(len(x0)):
             fun = self.builder.build_sequential_ds(inputs[i, :])
