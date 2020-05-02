@@ -2,6 +2,7 @@ import tensorflow as tf
 from utilities.util import flatten
 from typing import Tuple, Union, List
 
+
 def extract_layers(network: tf.keras.Model, unfold_tds: bool = False) -> List[tf.keras.layers.Layer]:
     """Recursively extract layers from a potentially nested list of Sequentials of unknown depth."""
     if not hasattr(network, "layers"):
